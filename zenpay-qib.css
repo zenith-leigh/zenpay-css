@@ -2044,76 +2044,85 @@ div.page-content {
 }
 
 /* ============================================================
-   Custom overrides (zenpay-qib): header row and payment-information
-   last row. Kept last so they win over the preset above.
+   Custom overrides (zenpay-qib). Kept last so they win over the preset above.
+   - 640px and up: the header is two columns that line up with the two cards,
+     the name and amount centred over the left card and the logo centred over
+     the right card.
+   - Under 640px: the preset's own stacked layout is kept (logo on top, then
+     "Payment to", the name and the amount, all centred), with a slightly
+     larger logo.
    ============================================================ */
 
-/* ---------- Page header row: text left, logo right ---------- */
-/* --qib-pad is the cards' own side padding at each width (30px wide, 16px phone,
-   14px between), so the header text and logo line up with the boxes inside the
-   cards instead of sitting on the cards' outer edges. */
-:root { --qib-pad: 14px; }
-@media (max-width: 767px) { :root { --qib-pad: 16px; } }
-@media (min-width: 992px) { :root { --qib-pad: 30px; } }
+@media (min-width: 640px) {
+  /* Header: same 30px gap as the cards, so each column sits over its card. */
+  .page-content > .row.align-items-center {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 30px;
+    align-items: stretch !important;
+    height: 137px;
+    padding: 0;
+    text-align: center !important;
+  }
 
-.page-content > .row.align-items-center {
-  display: flex;
-  flex-direction: row !important;
-  flex-wrap: nowrap !important;
-  align-items: stretch !important;
-  justify-content: space-between;
-  column-gap: 16px;
-  box-sizing: border-box;
-  height: 137px;
-  padding: 0 var(--qib-pad) !important;
-  text-align: left !important;
+  .page-content > .row.align-items-center > div {
+    height: 100% !important;
+    width: auto !important;
+  }
+
+  .page-content > .row.align-items-center > div:first-child {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    min-width: 0;
+    padding-top: 8px !important;
+    text-align: center !important;
+  }
+
+  .page-content > .row.align-items-center > div:last-child {
+    display: flex;
+    align-items: stretch;
+    justify-content: center;
+    min-width: 0;
+    text-align: center !important;
+  }
+
+  .page-content > .row.align-items-center img {
+    display: block;
+    height: 100% !important;
+    width: auto !important;
+    max-height: none !important;
+    max-width: 100% !important;
+    object-fit: contain;
+    object-position: center;
+    margin: 0 auto !important;
+  }
+
+  /* Amount: centred under the name, across exactly the left card's width. */
+  #payment-information-div .table.table-borderless.compact-table tr:last-child {
+    top: -99px !important;
+    left: 12px !important;
+    right: calc(50% + 15px) !important;
+    align-items: center !important;
+    text-align: center !important;
+  }
+
+  #payment-information-div .table.table-borderless.compact-table tr:last-child td:last-child {
+    text-align: center !important;
+  }
+
+  /* Footer: it is lifted out of the page flow, so the page only knows about the
+     room reserved for it here. 38px left about 2px under a one-line footer and
+     clipped anything taller (a wrapped line, a broken image's alt text); 66px
+     fits two lines. */
+  .row > .col-xs-12:has(#payment-div .widget-main > form#form ~ .row) {
+    margin-bottom: 66px;
+  }
 }
 
-.page-content > .row.align-items-center > div {
-  height: 100% !important;
-  width: auto !important;
-}
-
-.page-content > .row.align-items-center > div:first-child {
-  display: flex;
-  flex: 1 1 auto;
-  flex-direction: column;
-  justify-content: flex-start;
-  min-width: 0;
-  padding-top: 8px !important;
-  text-align: left !important;
-}
-
-.page-content > .row.align-items-center > div:last-child {
-  display: flex;
-  flex: 0 1 auto !important;
-  align-items: stretch;
-  justify-content: flex-end;
-  min-width: 0 !important;
-  margin-left: auto;
-  text-align: right !important;
-}
-
-.page-content > .row.align-items-center img {
-  display: block;
-  height: 100% !important;
-  width: auto !important;
-  max-height: none !important;
-  max-width: 100% !important;
-  object-fit: contain;
-  object-position: right top;
-  margin: 0 0 0 auto !important;
-}
-
-/* ---------- Payment information: last row positioning ---------- */
-#payment-information-div .table.table-borderless.compact-table tr:last-child {
-  top: -99px !important;
-  left: calc(12px + var(--qib-pad)) !important;
-  right: calc(50% + 15px) !important;
-  align-items: flex-start !important;
-  text-align: left !important;
-}
-
-#payment-information-div .table.table-borderless.compact-table tr:last-child td:last-child {
-  text-align: left !important;
+@media (max-width: 639.98px) {
+  .page-content > .row.align-items-center img {
+    max-height: 72px;
+  }
 }
