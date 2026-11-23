@@ -2049,13 +2049,23 @@ div.page-content {
    ============================================================ */
 
 /* ---------- Page header row: text left, logo right ---------- */
+/* --qib-pad is the cards' own side padding at each width (30px wide, 16px phone,
+   14px between), so the header text and logo line up with the boxes inside the
+   cards instead of sitting on the cards' outer edges. */
+:root { --qib-pad: 14px; }
+@media (max-width: 767px) { :root { --qib-pad: 16px; } }
+@media (min-width: 992px) { :root { --qib-pad: 30px; } }
+
 .page-content > .row.align-items-center {
   display: flex;
   flex-direction: row !important;
+  flex-wrap: nowrap !important;
   align-items: stretch !important;
   justify-content: space-between;
   column-gap: 16px;
+  box-sizing: border-box;
   height: 137px;
+  padding: 0 var(--qib-pad) !important;
   text-align: left !important;
 }
 
@@ -2076,9 +2086,10 @@ div.page-content {
 
 .page-content > .row.align-items-center > div:last-child {
   display: flex;
-  flex: 0 0 auto;
+  flex: 0 1 auto !important;
   align-items: stretch;
   justify-content: flex-end;
+  min-width: 0 !important;
   margin-left: auto;
   text-align: right !important;
 }
@@ -2088,15 +2099,16 @@ div.page-content {
   height: 100% !important;
   width: auto !important;
   max-height: none !important;
-  max-width: none !important;
+  max-width: 100% !important;
   object-fit: contain;
+  object-position: right top;
   margin: 0 0 0 auto !important;
 }
 
 /* ---------- Payment information: last row positioning ---------- */
 #payment-information-div .table.table-borderless.compact-table tr:last-child {
   top: -99px !important;
-  left: 12px !important;
+  left: calc(12px + var(--qib-pad)) !important;
   right: calc(50% + 15px) !important;
   align-items: flex-start !important;
   text-align: left !important;
