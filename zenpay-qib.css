@@ -896,14 +896,14 @@ button.apple-pay-btn,
 #alipay-plus-tab::before {
   background-color: #1677ff;
   box-shadow: none;
-  background-image: url("/Content/Images/alipay-plus-color-dark-bg.png");
+  background-image: url("https://cdn.zenithpayments.support/Content/Images/alipay-plus-color-dark-bg.png");
   background-size: auto 20px;
 }
 
 #payment-method-tab .nav-link[id*="wechat" i]::before {
   background-color: #07c160;
   box-shadow: none;
-  background-image: url("/Content/Images/wechat-pay-mark-white.png");
+  background-image: url("https://cdn.zenithpayments.support/Content/Images/wechat-pay-mark-white.png");
   background-size: auto 16px;
 }
 
