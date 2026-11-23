@@ -2139,9 +2139,11 @@ div.page-content {
     padding: 0 16px;
   }
 
-  /* The checkout sets max-height: 50px inline on the logo, so this needs !important. */
+  /* The checkout sets max-height: 50px inline on the logo, so this needs !important.
+     100px is the logo file's own height (300 x 100), so it stays sharp; on a very
+     narrow phone it shrinks to fit the width instead. */
   .page-content > .row.align-items-center img {
-    max-height: 72px !important;
+    max-height: 100px !important;
   }
 
   /* "Payment to" sits at the left edge of the boxes below; the name stays centred. */
