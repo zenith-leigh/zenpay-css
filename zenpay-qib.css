@@ -2060,6 +2060,9 @@ div.page-content {
   .page-content > .row.align-items-center {
     display: grid;
     grid-template-columns: minmax(270px, 1fr) minmax(0, 3fr);
+    /* Fixed row: without this a logo whose own height is over 100px stretches the
+       row past the header height and overlaps the cards. */
+    grid-template-rows: minmax(0, 1fr);
     column-gap: 30px;
     align-items: stretch !important;
     height: 100px;
