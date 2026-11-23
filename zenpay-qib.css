@@ -99,7 +99,7 @@ body {
    700px preview and an iPad mini at 744px both get two columns) and stack
    below that. */
 .main-container.container {
-  max-width: 1270px !important;
+  max-width: 1240px !important;
   margin: 0 auto;
   padding: 0 10px;
 }
