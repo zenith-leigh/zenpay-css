@@ -2049,8 +2049,10 @@ div.page-content {
      the name and amount centred over the left card and the logo centred over
      the right card.
    - Under 640px: the preset's own stacked layout is kept (logo on top, then
-     "Payment to", the name and the amount, all centred), with a slightly
-     larger logo.
+     "Payment to", the name and the amount), with a slightly larger logo,
+     "Payment to" left-aligned and the name and amount centred.
+   - Both: the header is inset 16px from the card edges, which is where the
+     boxes inside the cards start on a phone.
    ============================================================ */
 
 @media (min-width: 640px) {
@@ -2076,7 +2078,7 @@ div.page-content {
     align-items: center;
     justify-content: flex-start;
     min-width: 0;
-    padding-top: 8px !important;
+    padding: 8px 16px 0 !important;
     text-align: center !important;
   }
 
@@ -2085,6 +2087,7 @@ div.page-content {
     align-items: stretch;
     justify-content: center;
     min-width: 0;
+    padding: 0 16px !important;
     text-align: center !important;
   }
 
@@ -2122,7 +2125,17 @@ div.page-content {
 }
 
 @media (max-width: 639.98px) {
+  .page-content > .row.align-items-center {
+    box-sizing: border-box;
+    padding: 0 16px;
+  }
+
   .page-content > .row.align-items-center img {
     max-height: 72px;
+  }
+
+  /* "Payment to" sits at the left edge of the boxes below; the name stays centred. */
+  .page-content > .row.align-items-center .control-label::before {
+    text-align: left;
   }
 }
