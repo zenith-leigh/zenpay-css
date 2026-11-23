@@ -2062,7 +2062,8 @@ div.page-content {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     column-gap: 30px;
     align-items: stretch !important;
-    height: 137px;
+    height: 100px;
+    margin-bottom: 12px;
     padding: 0;
     text-align: center !important;
   }
@@ -2102,9 +2103,17 @@ div.page-content {
     margin: 0 auto !important;
   }
 
-  /* Amount: centred under the name, across exactly the left card's width. */
+  /* Amount: centred under the name, across exactly the left card's width.
+     It is lifted out of the table, so `top` is measured up from the cards:
+     header height (100px) + gap above the cards (12px) - where the amount
+     should start inside the header (58px, just under the name) = 54px.
+     If the header height or gap changes, change this with them. Not applied
+     to the editable-amount mode, which the preset positions itself. */
+  #payment-information-div .table.table-borderless.compact-table tr:last-child:not(:has(#PaymentAmount)) {
+    top: -54px !important;
+  }
+
   #payment-information-div .table.table-borderless.compact-table tr:last-child {
-    top: -99px !important;
     left: 12px !important;
     right: calc(50% + 15px) !important;
     align-items: center !important;
