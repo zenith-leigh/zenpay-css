@@ -2045,9 +2045,9 @@ div.page-content {
 
 /* ============================================================
    Custom overrides (zenpay-qib). Kept last so they win over the preset above.
-   - 640px and up: the header is two columns that line up with the two cards,
-     the name and amount centred over the left card and the logo centred over
-     the right card.
+   - 640px and up: the header is two columns in a 1 : 3 ratio, the name and
+     amount centred in the narrow left column and the logo centred in the wide
+     right one. The left column never goes under 240px, so the name keeps room.
    - Under 640px: the preset's own stacked layout is kept (logo on top, then
      "Payment to", the name and the amount), with a slightly larger logo,
      "Payment to" left-aligned and the name and amount centred.
@@ -2056,10 +2056,10 @@ div.page-content {
    ============================================================ */
 
 @media (min-width: 640px) {
-  /* Header: same 30px gap as the cards, so each column sits over its card. */
+  /* Header: text column 1 part, logo column 3 parts (text never under 240px). */
   .page-content > .row.align-items-center {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: minmax(240px, 1fr) minmax(0, 3fr);
     column-gap: 30px;
     align-items: stretch !important;
     height: 100px;
@@ -2103,7 +2103,7 @@ div.page-content {
     margin: 0 auto !important;
   }
 
-  /* Amount: centred under the name, across exactly the left card's width.
+  /* Amount: centred under the name, across exactly the text column's width.
      It is lifted out of the table, so `top` is measured up from the cards:
      header height (100px) + gap above the cards (12px) - where the amount
      should start inside the header (58px, just under the name) = 54px.
@@ -2115,7 +2115,7 @@ div.page-content {
 
   #payment-information-div .table.table-borderless.compact-table tr:last-child {
     left: 12px !important;
-    right: calc(50% + 15px) !important;
+    right: calc(100% - 12px - max(240px, (100% - 54px) / 4)) !important;
     align-items: center !important;
     text-align: center !important;
   }
