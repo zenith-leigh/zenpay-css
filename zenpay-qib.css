@@ -1,0 +1,2106 @@
+/* ============================================================
+   ZenPay v1 — "Figma" layout
+   Two white cards on a white page, as on the public payment page
+   (ZP-Public-WebPay, figma/pay): the payment summary on the left, the
+   payment methods and card form on the right, stacked below 640px.
+   The method tabs become full-width row choices with a radio-style mark, and
+   each method's form opens directly under its own row.
+   Pure CSS: no HTML/JS changes.
+
+   Load LAST (after the checkout's own stylesheets). The compiled theme is
+   appended after this layout, and where the two clash the theme's `!important`
+   rules win.
+
+   DOM facts (verified live, sandbox checkout):
+   - `.row > .col-xs-12` is the shared parent of two `.col-sm-12` children:
+     the first holds #payment-information-div (the summary), the second
+     holds #payment-div. Each becomes a card.
+   - The method tabs are buttons in ul#payment-method-tab, and each carries a
+     Font Awesome mark (`fa-check-circle` when active, `fa-circle-o` when
+     not). That mark is what gives the rows their radio look.
+   - The tab list and the panels (#payment-method-tabContent > .tab-pane) are
+     siblings. Both containers are made `display: contents` and every button
+     and panel gets an explicit `order`, which is how each panel lands under
+     its own row. A row is matched by the id of its button and a panel by its
+     own id, never by position, because merchants list different methods
+     (TravelPay has no Bank Account or PayID). The pairs are spaced by ten, row
+     then panel: Card 10/11, PayTo 20/21, PayID 30/31, Bank Account 40/41,
+     UnionPay 50/51, Alipay+ 60/61, WeChat Pay 70/71 (matched by an id
+     containing "wechat", as its real id is not captured). Any method not named
+     falls back to 80/81, after the named ones; one unknown method still gets
+     its panel under its row, but two would both sort at 80/81 (the rows, then
+     the panels), so they would need rules of their own. The wallet wrappers are direct
+     children of the form too and have no rule of their own: they keep the
+     default order 0, so they sit before every method row and panel in the
+     checkout's own order (Apple Pay, then Google Pay). The terms/Proceed row
+     is 99.
+   - Several sizes are inline styles in the checkout's markup (the expiry
+     selects, the terms/Proceed row, the wallet wrappers), so those rules
+     carry !important.
+   - The merchant footer is the `.row` after form#form (a snippet of the
+     merchant's own, so its content varies). Every ancestor between it and the
+     cards' grid is `position: static`, which is what lets it be lifted out of
+     the payment card and placed under both cards from 640px up; on a phone it
+     stays in the flow at the bottom of the payment card.
+
+   What CSS cannot do here: add the public page's input fields (the
+   customer details are read-only rows) or change the merchant name's
+   "Name (Code)" text to "Name - Code". The "Payment to" title and the method badges are drawn with `content` and
+   background images (the Card row is the Visa / Mastercard / American Express /
+   JCB strip alone, one background image centred on the row, so it shows selected
+   or not, with the row's label made invisible and the radio mark kept at the
+   left), and the amount (and, from 640px up, the footer) is lifted
+   out of its card with `position: absolute`; the checkout CSS validator has to be written to accept all of
+   these.
+   ============================================================ */
+
+:root {
+  --zp-page: #fff;
+  --zp-card: #ffffff;
+  --zp-receipt: #f5f7fb;
+  --zp-rail: #f8f9fa;
+  --zp-ink: #1f2a56;
+  --zp-ink-soft: #50597b;
+  --zp-muted: #7d839d;
+  --zp-faint: #aaaebf;
+  --zp-line: #dde1ea;
+  --zp-track: #dde1ea;
+  --zp-accent: #27346e;
+  --zp-accent-strong: #1d2858;
+  --zp-accent-ink: #ffffff;
+  --zp-accent-soft: #e5e7ee;
+  --zp-ok: #08a35c;
+  --zp-danger: #d92d20;
+  --zp-warn-border: #f0d48a;
+  --zp-warn-ink: #8a6d1a;
+  --zp-radius: 20px;
+  --zp-radius-sm: 8px;
+  --zp-radius-field: 10px;
+  --zp-font: "Open Sans", sans-serif;
+  --zp-mono: ui-monospace, "SF Mono", Consolas, monospace;
+}
+
+/* ---------- shell ---------- */
+html,
+body {
+  background: var(--zp-page);
+}
+
+body {
+  font-family: var(--zp-font) !important;
+  color: var(--zp-ink);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Two cards with the public payment page's 30px gap (20px when stacked).
+   The plugin's modal decides the real width; the cards sit side by side from 640px (so a
+   700px preview and an iPad mini at 744px both get two columns) and stack
+   below that. */
+.main-container.container {
+  max-width: 1240px !important;
+  margin: 0 auto;
+  padding: 0 10px;
+}
+
+/* Ace draws its page paper as `.main-container::before`: absolutely positioned, no left/right,
+   `width: 100%`, `max-width: inherit`. With no left/right its left edge stays at its static
+   position, which is this container's content box — so the side padding above pushes the paper
+   right by 10px (16px, 12px at the other breakpoints) and its full-width box ends that far past
+   the document's right edge. Nothing shows it: the checkout hides the overflow on `body` and the
+   paper paints where the theme's page colour already covers. The document still reports a
+   sideways-scrollable page, which is a defect in the CSS we ship, so the paper is pinned to the
+   container's border box — the position Ace's own zero-padding container gives it. */
+.main-container.container::before {
+  left: 0;
+}
+
+/* The checkout's own card. A theme paints `div.page-content` with !important, which
+   would put the two cards below on a white box; this layout owns the card
+   surfaces, so it clears that one and the cards carry the colour. */
+.page-content.payment-form-padding {
+  padding: 2px 0 2px !important;
+  background-color: transparent !important;
+}
+
+/* ---------- test banner ---------- */
+/* A slim full-width bar. The checkout writes `padding: 5px !important;
+   margin-bottom: 5px !important` inline on this alert, and no stylesheet rule
+   can override an inline !important, so those two values are what shows; the
+   padding and margin below apply only where that inline style is absent. */
+.page-content .alert.alert-warning {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--zp-line);
+  border-radius: var(--zp-radius-sm);
+  background-color: var(--zp-accent-soft);
+  color: var(--zp-ink);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 12px;
+  margin: 0 0 6px;
+}
+
+/* ---------- merchant hero ----------
+   The public page stacks the logo, "PAYMENT TO", the merchant name and the
+   amount, centred. The checkout puts the name and logo in one row; the
+   columns are flipped so the logo comes first, and the label is drawn above
+   the name. The name keeps the checkout's own "Name (Code)" text. */
+.page-content > .row.align-items-center {
+  flex-direction: column-reverse;
+  align-items: center;
+  row-gap: 6px;
+  margin: 4px 0 55px;
+  text-align: center;
+}
+
+/* Tokenisation has no summary card or visible amount to reserve space for. */
+.page-content:has(#payment-div):not(:has(#payment-information-div)) > .row.align-items-center {
+  margin-bottom: 24px;
+}
+
+.page-content > .row.align-items-center > div {
+  width: 100%;
+  padding: 0;
+  text-align: center !important;
+}
+
+.page-content > .row.align-items-center img {
+  display: block;
+  max-height: 48px;
+  width: auto;
+  margin: 0 auto;
+}
+
+.page-content > .row.align-items-center .control-label {
+  display: block;
+  margin: 0;
+  color: var(--zp-ink);
+  font-size: 26px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.page-content > .row.align-items-center .control-label::before {
+  content: "Payment to";
+  display: block;
+  margin-bottom: 2px;
+  color: var(--zp-ink-soft);
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* ============================================================
+   THE TWO CARDS
+   ============================================================ */
+.row > .col-xs-12:has(#payment-div) {
+  float: none;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.row > .col-xs-12:has(#payment-div) > .col-sm-12 {
+  float: none;
+  width: auto;
+  padding: 22px 14px;
+  background-color: var(--zp-card);
+  border-radius: var(--zp-radius);
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 2px 8px rgba(16, 24, 40, 0.05);
+}
+
+/* The two cards are deliberately the same height: the grid stretches them to
+   the taller one (the default `align-items`), so keep it that way. Stacked
+   (below 640px) each card is its own row and keeps its own height. */
+@media (min-width: 640px) {
+  .row > .col-xs-12:has(#payment-div) {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 30px;
+  }
+
+  /* Keep the normal payment-card width, centred when the summary is absent. */
+  .row > .col-xs-12:has(#payment-div):not(:has(#payment-information-div)) {
+    grid-template-columns: minmax(0, calc((100% - 30px) / 2));
+    justify-content: center;
+  }
+}
+
+@media (min-width: 992px) {
+  .main-container.container {
+    padding: 0 16px;
+  }
+
+  .row > .col-xs-12:has(#payment-div) {
+    gap: 30px;
+  }
+
+  .row > .col-xs-12:has(#payment-div) > .col-sm-12 {
+    padding: 28px 30px 18px;
+  }
+}
+
+/* Both cards keep only a sliver of space above their first item and below their
+   last, at every width, so the summary rows and the wallet buttons start level.
+   The card's padding is set per breakpoint above and in the narrow blocks below
+   with the same selector; the repeated `:has(#payment-div)` raises this one past
+   all of them, so side padding still follows the width. */
+.row > .col-xs-12:has(#payment-div):has(#payment-div) > .col-sm-12 {
+  padding-top: 2px;
+  padding-bottom: 2px;
+}
+
+#payment-information-div.widget-box.transparent,
+#payment-div.widget-box.transparent {
+  background: transparent;
+  border: 0;
+}
+
+#payment-div > .widget-body > .widget-main {
+  padding: 0;
+}
+
+/* ---------- summary card ---------- */
+/* Bootstrap's row and column gutters would indent the fields a further 15px
+   inside the card; the card's own padding is the only one. */
+#payment-information-div .widget-main {
+  padding: 0;
+}
+
+#payment-information-div .widget-main > .row,
+#credit-card .row,
+#unionpay-card .row {
+  margin-left: 0;
+  margin-right: 0;
+}
+
+#payment-information-div .widget-main .col-xs-12,
+#credit-card .row > [class*="col-"],
+#unionpay-card .row > [class*="col-"] {
+  padding-left: 0;
+  padding-right: 0;
+}
+
+/* The summary card has no title: the checkout's own "Payment Information"
+   header is hidden, so the card starts with the customer rows. */
+#payment-information-div .widget-header,
+#payment-information-div > .space-6 {
+  display: none;
+}
+
+#payment-information-div .table.table-borderless.compact-table {
+  display: block;
+  width: 100%;
+}
+
+#payment-information-div .table.table-borderless.compact-table tbody {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+/* Customer details first, then the SKUs: Customer Reference, Name, Email and
+   Contact Number lead and any SKU rows follow. The rows carry no ids or
+   classes, so they can only be told apart by position, and the checkout puts
+   the SKU rows first when a merchant has them. The row count says how many
+   there are: exactly 7 rows is Sku 1, Sku 2, then the four details; exactly 6
+   is one SKU; 5 or fewer is the four details with no SKU (TravelPay), already
+   in the right order, so nothing moves; 8 or more is a shape nobody has
+   captured, so those rows are left in markup order rather than scrambled. The
+   last row is the amount, which is absolutely positioned below and unaffected
+   by order. */
+#payment-information-div .table.table-borderless.compact-table tbody:has(> tr:nth-child(7)):not(:has(> tr:nth-child(8))) > tr:nth-child(3) { order: 1; }
+#payment-information-div .table.table-borderless.compact-table tbody:has(> tr:nth-child(7)):not(:has(> tr:nth-child(8))) > tr:nth-child(4) { order: 2; }
+#payment-information-div .table.table-borderless.compact-table tbody:has(> tr:nth-child(7)):not(:has(> tr:nth-child(8))) > tr:nth-child(5) { order: 3; }
+#payment-information-div .table.table-borderless.compact-table tbody:has(> tr:nth-child(7)):not(:has(> tr:nth-child(8))) > tr:nth-child(6) { order: 4; }
+#payment-information-div .table.table-borderless.compact-table tbody:has(> tr:nth-child(7)):not(:has(> tr:nth-child(8))) > tr:nth-child(1) { order: 5; }
+#payment-information-div .table.table-borderless.compact-table tbody:has(> tr:nth-child(7)):not(:has(> tr:nth-child(8))) > tr:nth-child(2) { order: 6; }
+#payment-information-div .table.table-borderless.compact-table tbody:has(> tr:nth-child(6):last-child) > tr:nth-child(1) { order: 1; }
+
+/* Read-only details are grouped on a soft surface; only the mode-2 amount keeps input chrome. */
+#payment-information-div .table.table-borderless.compact-table tr {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  margin: 0 0 14px;
+}
+
+#payment-information-div .table.table-borderless.compact-table .row-label {
+  padding: 0 !important;
+  border: 0 !important;
+  width: auto;
+  white-space: normal;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--zp-ink);
+}
+
+#payment-information-div .table.table-borderless.compact-table td:last-child {
+  display: block;
+  min-width: 0;
+  min-height: 0;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background-color: transparent !important;
+  color: var(--zp-ink);
+  font-size: 15px;
+  overflow-wrap: anywhere;
+}
+
+#payment-information-div .table.table-borderless.compact-table tr:not(:last-child) {
+  gap: 4px;
+  margin: 0 0 10px;
+  padding: 9px 16px;
+  border: 0 !important;
+  border-radius: var(--zp-radius-field);
+  background-color: var(--zp-receipt) !important;
+}
+
+#payment-information-div .table.table-borderless.compact-table tr:not(:last-child) .row-label {
+  color: var(--zp-ink-soft) !important;
+  font-size: 13px !important;
+  font-weight: 400 !important;
+  line-height: 1.4;
+}
+
+#payment-information-div .table.table-borderless.compact-table tr:not(:last-child) td:last-child {
+  color: var(--zp-ink) !important;
+  font-size: 16px !important;
+  font-weight: 600 !important;
+  line-height: 1.5;
+}
+
+/* Keep the same read-only grouping on phones, with tighter padding. */
+@media (max-width: 639.98px) {
+  #payment-information-div .table.table-borderless.compact-table tr:not(:last-child) {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
+    margin: 0 0 10px;
+    padding: 9px 14px;
+    border-bottom: 0;
+  }
+
+  #payment-information-div .table.table-borderless.compact-table tbody:has(> tr:nth-child(7)):not(:has(> tr:nth-child(8))) > tr:nth-child(2),
+  #payment-information-div .table.table-borderless.compact-table tbody:has(> tr:nth-child(6):last-child) > tr:nth-child(1),
+  #payment-information-div .table.table-borderless.compact-table tbody:not(:has(> tr:nth-child(6))) > tr:nth-last-child(2),
+  #payment-information-div .table.table-borderless.compact-table tbody:has(> tr:nth-child(8)) > tr:nth-last-child(2) {
+    border-bottom: 0;
+  }
+
+  #payment-information-div .table.table-borderless.compact-table tr:not(:last-child) .row-label {
+    flex: none;
+    white-space: normal;
+    color: var(--zp-ink-soft);
+  }
+
+  #payment-information-div .table.table-borderless.compact-table tr:not(:last-child) td:last-child {
+    flex: 0 1 auto;
+    min-height: 0;
+    padding: 0 !important;
+    border: 0 !important;
+    background-color: transparent !important;
+    text-align: left;
+  }
+}
+
+/* The amount sits centred under the merchant name, as on the public page, with
+   no label. It is the last row of the summary table, so it is lifted out of the
+   card with `position: absolute` and anchored to the cards' grid (made the
+   positioned ancestor), which leaves room above the cards because the hero's
+   bottom margin is made tall enough to hold it. The two numbers go together:
+   the amount is 38px x 1.15 = about 44px tall, so `top` is -(44 + the 8px
+   left between the amount and the cards) = -52px, and the hero's bottom margin
+   is that 52px plus the 3px left under the merchant name = 55px. Resize the
+   amount and both have to move with it. */
+.row > .col-xs-12:has(#payment-div) {
+  position: relative;
+}
+
+#payment-information-div.widget-box.transparent,
+#payment-information-div .widget-body,
+#payment-information-div .widget-main {
+  position: static;
+}
+
+#payment-information-div .table.table-borderless.compact-table tr:last-child {
+  position: absolute;
+  top: -52px;
+  left: 0;
+  right: 0;
+  align-items: center;
+  margin: 0;
+  text-align: center;
+}
+
+/* The "Payment Amount" label is hidden from view only; screen readers still
+   read it. */
+#payment-information-div .table.table-borderless.compact-table tr:last-child .row-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+#payment-information-div .table.table-borderless.compact-table tr:last-child td:last-child {
+  min-height: 0;
+  padding: 0 !important;
+  border: 0 !important;
+  background-color: transparent !important;
+  text-align: center;
+  font-size: 38px;
+  font-weight: 700;
+  line-height: 1.15;
+  color: var(--zp-ink);
+}
+
+/* Mode 2 already supplies an editable amount input; keep it and its validation intact. */
+.page-content:has(#payment-information-div #PaymentAmount) > .row.align-items-center { margin-bottom: 107px; }
+#payment-information-div .table.table-borderless.compact-table tr:last-child:has(#PaymentAmount) { top: -104px; gap: 8px; }
+#payment-information-div .table.table-borderless.compact-table tr:last-child:has(#PaymentAmount) .row-label { position: static; width: auto; height: 24px; overflow: visible; clip-path: none; color: var(--zp-ink-soft); font-size: 15px; font-weight: 400; line-height: 24px; }
+#payment-information-div .table.table-borderless.compact-table tr:last-child:has(#PaymentAmount) td:last-child { width: min(340px, calc(100% - 24px)); }
+#payment-information-div .input-group:has(> #PaymentAmount) { position: relative; display: flex; align-items: center; height: 64px; width: 100%; min-width: 0; border: 1px solid var(--zp-line) !important; border-radius: var(--zp-radius-field); background: var(--zp-card) !important; overflow: hidden; }
+#payment-information-div .input-group:has(> #PaymentAmount)::after { content: "\f040"; position: absolute; inset: 0 0 0 auto; display: grid; place-items: center; width: 48px; border-left: 1px solid var(--zp-line); font: 18px/1 FontAwesome; color: var(--zp-accent); pointer-events: none; }
+#payment-information-div .input-group:has(> #PaymentAmount):focus-within { border-color: var(--zp-accent) !important; box-shadow: 0 0 0 3px color-mix(in srgb, var(--zp-accent) 18%, transparent); }
+#payment-information-div .input-group:has(> #PaymentAmount) > .input-group-text { display: block; padding: 0 0 0 16px; background: transparent; border: 0; color: var(--zp-ink); font-size: 42px; font-weight: 700; line-height: 1.15; }
+#payment-information-div input#PaymentAmount.form-control { flex: 1; width: 0; min-width: 0; height: 100%; padding: 0 52px 0 4px !important; border: 0 !important; border-radius: 0 !important; background: transparent !important; color: var(--zp-ink) !important; font-size: 42px !important; font-weight: 700; line-height: 1.15; text-align: center; font-variant-numeric: tabular-nums; box-shadow: none !important; }
+@media (max-width: 767px) { #payment-information-div input#PaymentAmount.form-control, #payment-information-div .input-group:has(> #PaymentAmount) > .input-group-text { font-size: 32px !important; } }
+
+/* Mode 2 over-the-limit warning. The checkout keeps #payment-amount-threshold-warning
+   in the amount row all the time and shows it with no inline display:none once the
+   amount is over the limit. The row is lifted out of the card, so the warning (76px,
+   94px when its text takes a fourth line below about 300px of row, plus its 8px
+   margin) hangs over the card titles unless that room is added above the cards: the
+   hero's bottom margin grows by it and the amount row moves up by the same amount, so
+   the amount stays where it was. Keyed on the inline style, since the element is
+   never removed. */
+.page-content:has(#payment-information-div #PaymentAmount):has(#payment-amount-threshold-warning:not([style*="display: none"]):not([style*="display:none"])) > .row.align-items-center { margin-bottom: 191px; }
+#payment-information-div .table.table-borderless.compact-table tr:last-child:has(#PaymentAmount):has(#payment-amount-threshold-warning:not([style*="display: none"]):not([style*="display:none"])) { top: -188px; }
+@media (max-width: 389px) {
+  .page-content:has(#payment-information-div #PaymentAmount):has(#payment-amount-threshold-warning:not([style*="display: none"]):not([style*="display:none"])) > .row.align-items-center { margin-bottom: 209px; }
+  #payment-information-div .table.table-borderless.compact-table tr:last-child:has(#PaymentAmount):has(#payment-amount-threshold-warning:not([style*="display: none"]):not([style*="display:none"])) { top: -206px; }
+}
+
+/* PayTo and Alipay hide the summary, but leave its wrapper and amount in the DOM. */
+.page-content:has(#payment-confirmation-div:not(.d-none) :is(.pay-to-div, .alipay-plus-div):not(.d-none)) > .row.align-items-center {
+  margin-bottom: 24px !important;
+}
+
+.row > .col-xs-12:has(#payment-confirmation-div:not(.d-none) :is(.pay-to-div, .alipay-plus-div):not(.d-none)) > .col-sm-12:has(> #payment-information-div.d-none) {
+  display: none;
+}
+
+@media (min-width: 640px) {
+  .row > .col-xs-12:has(#payment-confirmation-div:not(.d-none) :is(.pay-to-div, .alipay-plus-div):not(.d-none)) {
+    grid-template-columns: minmax(0, calc((100% - 30px) / 2));
+    justify-content: center;
+  }
+
+  /* The provider's QR screen needs the whole checkout width. */
+  .row > .col-xs-12:has(#payment-confirmation-div:not(.d-none) .alipay-plus-div:not(.d-none)) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Bootstrap gutters would make the provider iframe wider than the card content. */
+#payment-confirmation-div .alipay-plus-div > .row {
+  margin-left: 0;
+  margin-right: 0;
+}
+
+#alipay-plus-iframe {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+}
+
+/* ---------- wallets ---------- */
+#form > div.apple-div .separator,
+#form > div.google-div .separator {
+  display: none;
+}
+
+.apple-div,
+.google-div {
+  margin: 0 0 10px;
+}
+
+/* After Apple Pay or Google Pay the checkout shows the chosen card as a plain
+   two-row table (Card Number, Card type) in place of the card form. It takes the
+   same soft rows as the customer details: the label at 13px over the value at 16px. */
+.apple-result-div .table,
+.google-pay-result-div .table {
+  margin: 0 0 12px;
+  background: none;
+}
+
+.apple-result-div .table tbody,
+.google-pay-result-div .table tbody {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.apple-result-div .table tr,
+.google-pay-result-div .table tr {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 16px;
+  border-radius: var(--zp-radius-field);
+  background-color: var(--zp-receipt) !important;
+}
+
+.apple-result-div .table td,
+.google-pay-result-div .table td {
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  color: var(--zp-ink);
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.apple-result-div .table td.row-label,
+.google-pay-result-div .table td.row-label {
+  color: var(--zp-ink-soft);
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.4;
+}
+
+#apple-pay-div .apple-pay-btn-wrapper,
+#google-pay-div > div {
+  width: 100%;
+}
+
+/* The checkout pins the Apple Pay wrapper to the button's old 40px, which
+   would let the taller button run into the one below it. */
+#apple-pay-div .apple-pay-btn-wrapper {
+  height: 45px !important;
+}
+
+button.apple-pay-btn,
+#gpay-button-online-api-id,
+.gpay-button {
+  width: 100% !important;
+  min-width: 0;
+  max-width: none;
+}
+
+.apple-pay-btn-wrapper .apple-pay-btn {
+  box-sizing: border-box;
+  height: 45px;
+  border-radius: var(--zp-radius-field);
+}
+
+#gpay-button-online-api-id {
+  display: block;
+  height: 45px !important;
+  border-radius: var(--zp-radius-field) !important;
+}
+
+/* The hosted checkout supplies white Apple artwork and Google's dark variant. */
+#apple-pay-div .apple-pay-btn-wrapper .apple-pay-btn,
+#google-pay-div #gpay-button-online-api-id {
+  background-color: #fff;
+  border: 1px solid var(--zp-line);
+  box-shadow: none;
+  transition: box-shadow .12s ease;
+}
+
+#apple-pay-div .apple-pay-btn svg text,
+#apple-pay-div .apple-pay-btn svg g[fill="#FFF"] {
+  fill: #000;
+}
+
+/* Logo only, without "Pay with". The checkout's Apple button holds two pictures,
+   the "Pay with" one shown and a logo-only one it hides (class hidden), so the
+   two are swapped. Google's plain button draws its picture as a background, so
+   the picture is swapped for Google's G Pay logo alone. */
+#apple-pay-div .apple-pay-btn svg#svg-text {
+  display: none !important;
+}
+
+#apple-pay-div .apple-pay-btn svg#svg-logo.hidden {
+  display: block !important;
+  width: auto;
+  height: 40px;
+  margin: 0 auto;
+}
+
+#google-pay-div #gpay-button-online-api-id.pay.en {
+  background-image: url("https://www.gstatic.com/instantbuy/svg/light_gpay.svg");
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: auto 22px;
+}
+
+/* Google may draw its own button artwork in an iframe (pay.google.com
+   generate_gpay_btn_img). Its "pay" artwork includes the words "Pay with", in
+   white, on transparent, and CSS cannot edit another origin's picture, only
+   hide it. So the iframe is hidden and the logo-only background above stays the
+   button, whether or not Google serves the iframe. */
+#google-pay-div .gpay-card-info-iframe {
+  display: none !important;
+}
+
+#google-pay-div #gpay-button-online-api-id:not(.focus):not(:focus-visible) {
+  outline: none;
+}
+
+#apple-pay-div .apple-pay-btn-wrapper .apple-pay-btn:hover:not(:disabled),
+#google-pay-div #gpay-button-online-api-id:hover:not(:disabled),
+#google-pay-div .gpay-card-info-container:hover {
+  background-color: #fff !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--zp-accent) 18%, transparent);
+  opacity: 1;
+}
+
+#apple-pay-div .apple-pay-btn-wrapper .apple-pay-btn:focus-visible,
+#google-pay-div #gpay-button-online-api-id:focus-visible {
+  outline: 2px solid var(--zp-accent);
+  outline-offset: 2px;
+}
+
+/* ---------- method rows ---------- */
+/* The method buttons (ul > li) and their panels (#payment-method-tabContent >
+   .tab-pane) are siblings, so by default every panel opens below the whole
+   list. Both containers are flattened (`display: contents`) so each button and
+   each panel becomes an item of the form, and an explicit order puts every
+   panel straight after its own button. Only the active panel is displayed. */
+#payment-div .widget-body > .widget-main > form#form {
+  display: flex;
+  flex-direction: column;
+}
+
+#payment-div ul#payment-method-tab.nav-tabs,
+#payment-method-tabContent {
+  display: contents;
+}
+
+/* Rows and panels are paired by id, not position: a merchant with fewer
+   methods than the sandbox has different children in each slot. Any method not
+   named below keeps the base order (80 / 81), so it lands after the named ones
+   and the wallets (order 0). The id rules are more specific than the base ones,
+   so they win wherever they sit in the file. */
+#payment-method-tab > li.nav-item {
+  order: 80;
+  width: auto;
+  margin: 0 0 10px;
+}
+
+#payment-method-tabContent > .tab-pane {
+  order: 81;
+}
+
+#payment-method-tab > li.nav-item:has(> #credit-card-tab) { order: 10; }
+#payment-method-tab > li.nav-item:has(> #payto-bank-account-tab) { order: 20; }
+#payment-method-tab > li.nav-item:has(> #pay-id-tab) { order: 30; }
+#payment-method-tab > li.nav-item:has(> #bank-account-tab) { order: 40; }
+#payment-method-tab > li.nav-item:has(> #unionpay-tab) { order: 50; }
+#payment-method-tab > li.nav-item:has(> #alipay-plus-tab) { order: 60; }
+#payment-method-tab > li.nav-item:has(> [id*="wechat" i]) { order: 70; }
+
+#payment-method-tabContent > #credit-card { order: 11; }
+#payment-method-tabContent > #payto-bank-account { order: 21; }
+#payment-method-tabContent > #pay-id { order: 31; }
+#payment-method-tabContent > #bank-account { order: 41; }
+#payment-method-tabContent > #unionpay-card { order: 51; }
+#payment-method-tabContent > #alipay-plus { order: 61; }
+#payment-method-tabContent > .tab-pane[id*="wechat" i] { order: 71; }
+
+/* The open method is framed: its row and its panel read as one bordered card.
+   The row loses its bottom corners and gap, keeps a light divider, and the
+   panel carries the rest of the frame. */
+#payment-method-tab > li.nav-item:has(> .nav-link.active) {
+  margin-bottom: 0;
+}
+
+#payment-method-tab > li.nav-item > .nav-link.active {
+  border-bottom-color: var(--zp-line) !important;
+  border-bottom-width: 1px;
+  border-radius: 10px 10px 0 0;
+  padding-bottom: 6.5px;
+}
+
+#payment-method-tabContent > .tab-pane.active {
+  margin: 0 0 12px;
+  padding: 14px 12px 8px;
+  border: 1.5px solid var(--zp-accent);
+  border-top: 0;
+  border-radius: 0 0 10px 10px;
+}
+
+#payment-method-tab .nav-link {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  width: 100%;
+  margin-bottom: 0;
+  padding: 6.5px 16px;
+  background-color: var(--zp-card);
+  color: var(--zp-ink);
+  border: 1px solid var(--zp-line);
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  text-align: left;
+  transition: box-shadow .12s ease !important;
+}
+
+/* Method choices share the wallets' hover ring without changing their selection. */
+#payment-method-tab > li.nav-item > .nav-link:not(.active):hover:not(:disabled),
+#payment-method-tab > li.nav-item > .nav-link.active:hover:not(:disabled) {
+  background-color: var(--zp-card) !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--zp-accent) 18%, transparent) !important;
+}
+
+#payment-method-tab > li.nav-item > .nav-link:not(.active):active:not(:disabled) {
+  background-color: var(--zp-receipt) !important;
+}
+
+#payment-method-tab > li.nav-item > .nav-link.active:active:not(:disabled) {
+  background-color: var(--zp-card) !important;
+}
+
+/* The page-wide border colour is !important, so the selected row has to be as
+   well. A 1.5px border (with the padding trimmed to match) outlines it; a theme
+   cannot recolour a box-shadow, but it can recolour this. */
+#payment-method-tab .nav-link.active {
+  border-color: var(--zp-accent) !important;
+  border-width: 1.5px;
+  padding: 6px 15.5px;
+}
+
+/* The radio-style mark. A theme sets the row's text colour with the same
+   specificity, so the marks name themselves (`.fa`) to stay ahead of it. */
+#payment-method-tab .nav-link.active .fa {
+  color: var(--zp-ok) !important;
+}
+
+#payment-method-tab .nav-link:not(.active) .fa {
+  color: var(--zp-line) !important;
+}
+
+/* Row order: radio mark, badge, label. The checkout writes the PayTo image after
+   the label, so the badge and the mark are given explicit order values (the
+   label is an unnamed item and keeps 0). */
+#payment-div .nav-tabs .nav-link .fa {
+  order: -2;
+  font-size: 20px;
+}
+
+/* PayTo keeps its existing image and accessible name; the public setup artwork is inlined so exported CSS does not depend on the stylesheet host. */
+
+#payment-div .nav-tabs .nav-link img[src$="PayTo_symbol-Black-WEB.svg"] {
+  order: -1;
+  box-sizing: border-box;
+  flex: none;
+  height: 30px !important;
+  width: 92px !important;
+  object-fit: contain;
+  margin-top: 0 !important;
+  padding: 2px 8px;
+  content: url("data:image/png;base64,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");
+  background-color: #ffffff !important;
+  box-shadow: inset 0 0 0 1px #dde1ea;
+  border-radius: 6px;
+}
+
+/* White tiles use the public page's inset hairline and artwork. Brand-colour artwork keeps its matching blue or green tile. WeChat is matched by id because its real id has not been captured. */
+#bank-account-tab::before,
+#pay-id-tab::before,
+#unionpay-tab::before,
+#alipay-plus-tab::before,
+#payment-method-tab .nav-link[id*="wechat" i]::before {
+  content: "";
+  order: -1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  box-sizing: border-box;
+  width: 92px;
+  height: 30px;
+  border-radius: 6px;
+  background-color: #ffffff;
+  box-shadow: inset 0 0 0 1px #dde1ea;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: auto 18px;
+  color: #1f2a56;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+/* Visa, Mastercard, American Express and JCB as full-colour tiles, centred on the Card row: the same four-card strip the public payment page draws (23 x 17px each, 7px apart, 113px wide at natural size), shown at 140px so the logos read as large as the wallet marks. The row is the open block's header too, so one rule covers the unselected and selected states. Longhands only: a background shorthand in a hover or selected state would wipe the image. */
+#payment-method-tab #credit-card-tab {
+  background-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22113%22%20height%3D%2217%22%20viewBox%3D%220%200%20113%2017%22%3E%3Cdefs%3E%3CclipPath%20id%3D%22c%22%3E%3Crect%20width%3D%2223%22%20height%3D%2217%22%20rx%3D%223%22%2F%3E%3C%2FclipPath%3E%3C%2Fdefs%3E%3Cg%20transform%3D%22translate(0%200)%22%20clip-path%3D%22url(%23c)%22%3E%3Crect%20width%3D%2223%22%20height%3D%2217%22%20fill%3D%22%23fff%22%2F%3E%3Csvg%20x%3D%222.5299999999999994%22%20y%3D%225.5876204%22%20width%3D%2217.94%22%20height%3D%225.824759200000001%22%20viewBox%3D%220%200%201000%20324.68%22%20preserveAspectRatio%3D%22xMidYMid%20meet%22%3E%3Cpath%20fill%3D%22%231434cb%22%20d%3D%22m651.19.5c-70.93%2C0-134.32%2C36.77-134.32%2C104.69%2C0%2C77.9%2C112.42%2C83.28%2C112.42%2C122.42%2C0%2C16.48-18.88%2C31.23-51.14%2C31.23-45.77%2C0-79.98-20.61-79.98-20.61l-14.64%2C68.55s39.41%2C17.41%2C91.73%2C17.41c77.55%2C0%2C138.58-38.57%2C138.58-107.66%2C0-82.32-112.89-87.54-112.89-123.86%2C0-12.91%2C15.5-27.05%2C47.66-27.05%2C36.29%2C0%2C65.89%2C14.99%2C65.89%2C14.99l14.33-66.2S696.61.5%2C651.18.5h0ZM2.22%2C5.5L.5%2C15.49s29.84%2C5.46%2C56.72%2C16.36c34.61%2C12.49%2C37.07%2C19.77%2C42.9%2C42.35l63.51%2C244.83h85.14L379.93%2C5.5h-84.94l-84.28%2C213.17-34.39-180.7c-3.15-20.68-19.13-32.48-38.68-32.48%2C0%2C0-135.41%2C0-135.41%2C0Zm411.87%2C0l-66.63%2C313.53h81L494.85%2C5.5h-80.76Zm451.76%2C0c-19.53%2C0-29.88%2C10.46-37.47%2C28.73l-118.67%2C284.8h84.94l16.43-47.47h103.48l9.99%2C47.47h74.95L934.12%2C5.5h-68.27Zm11.05%2C84.71l25.18%2C117.65h-67.45l42.28-117.65h0Z%22%2F%3E%3C%2Fsvg%3E%3Crect%20x%3D%22.5%22%20y%3D%22.5%22%20width%3D%2222%22%20height%3D%2216%22%20rx%3D%222.5%22%20fill%3D%22none%22%20stroke%3D%22%23dde1ea%22%2F%3E%3C%2Fg%3E%3Cg%20transform%3D%22translate(30%200)%22%20clip-path%3D%22url(%23c)%22%3E%3Crect%20width%3D%2223%22%20height%3D%2217%22%20fill%3D%22%23fff%22%2F%3E%3Csvg%20x%3D%223.450000000000001%22%20y%3D%223.525100000000001%22%20width%3D%2216.099999999999998%22%20height%3D%229.949799999999998%22%20viewBox%3D%220%200%201000%20618%22%20preserveAspectRatio%3D%22xMidYMid%20meet%22%3E%3Cpath%20fill%3D%22%23EB001B%22%20d%3D%22m308%2C0a309%2C309%200%201%2C0%202%2C0z%22%2F%3E%3Cpath%20fill%3D%22%23F79E1B%22%20d%3D%22m690%2C0a309%2C309%200%201%2C0%202%2C0z%22%2F%3E%3Cpath%20fill%3D%22%23FF5F00%22%20d%3D%22m500%2C66a309%2C309%200%200%2C0%200%2C486%20309%2C309%200%200%2C0%200-486%22%2F%3E%3C%2Fsvg%3E%3Crect%20x%3D%22.5%22%20y%3D%22.5%22%20width%3D%2222%22%20height%3D%2216%22%20rx%3D%222.5%22%20fill%3D%22none%22%20stroke%3D%22%23dde1ea%22%2F%3E%3C%2Fg%3E%3Cg%20transform%3D%22translate(60%200)%22%20clip-path%3D%22url(%23c)%22%3E%3Crect%20width%3D%2223%22%20height%3D%2217%22%20fill%3D%22%23fff%22%2F%3E%3Csvg%20x%3D%220%22%20y%3D%220%22%20width%3D%2223%22%20height%3D%2217%22%20viewBox%3D%220%200%201000%20997.51703%22%20preserveAspectRatio%3D%22xMidYMid%20slice%22%3E%3Cdefs%20id%3D%22defs4%22%20%2F%3E%3Cg%20id%3D%22layer1%22%20transform%3D%22translate(-55.5%2C-1002.3452)%22%3E%3Cpath%20id%3D%22path3078%22%20d%3D%22m%2055.5%2C1002.3454%20997.5168%2C0%200%2C538.4893%20-49.3744%2C77.1475%2049.3744%2C68.6613%200%2C313.2187%20-997.5168%2C0%200%2C-507.6304%20L%2086.358989%2C1456.744%2055.5%2C1422.7991%20Z%22%20style%3D%22fill%3A%23016fd0%3Bfill-opacity%3A1%3Bstroke%3Anone%22%20%2F%3E%3Cpath%20id%3D%22path3082%22%20d%3D%22m%20249.14015%2C1697.4441%200%2C-156.6094%20165.82027%2C0%2017.79072%2C23.1924%2018.37901%2C-23.1924%20601.88665%2C0%200%2C145.8088%20c%200%2C0%20-15.7404%2C10.644%20-33.9449%2C10.8006%20l%20-333.27706%2C0%20-20.05834%2C-24.6872%200%2C24.6872%20-65.72965%2C0%200%2C-42.1418%20c%200%2C0%20-8.97877%2C5.8825%20-28.39026%2C5.8825%20l%20-22.37277%2C0%200%2C36.2593%20-99.52024%2C0%20-17.7653%2C-23.6898%20-18.03807%2C23.6898%20z%22%20style%3D%22fill%3A%23ffffff%3Bstroke%3Anone%22%20%2F%3E%3Cpath%20id%3D%22path3080%22%20d%3D%22m%2055.5%2C1422.7991%2037.393125%2C-87.1766%2064.667505%2C0%2021.22103%2C48.8328%200%2C-48.8328%2080.38767%2C0%2012.63289%2C35.2949%2012.24716%2C-35.2949%20360.8573%2C0%200%2C17.7439%20c%200%2C0%2018.96995%2C-17.7439%2050.14586%2C-17.7439%20l%20117.08499%2C0.4092%2020.85469%2C48.1937%200%2C-48.6029%2067.27259%2C0%2018.5154%2C27.6834%200%2C-27.6834%2067.88977%2C0%200%2C156.6093%20-67.88977%2C0%20-17.74392%2C-27.7731%200%2C27.7731%20-98.83835%2C0%20-9.93959%2C-24.6872%20-26.57108%2C0%20-9.77781%2C24.6872%20-67.02872%2C0%20c%20-26.82589%2C0%20-43.97406%2C-17.3816%20-43.97406%2C-17.3816%20l%200%2C17.3816%20-101.06318%2C0%20-20.05835%2C-24.6872%200%2C24.6872%20-375.80462%2C0%20-9.93274%2C-24.6872%20-26.48635%2C0%20-9.86254%2C24.6872%20-46.1989%2C0%20z%22%20style%3D%22fill%3A%23ffffff%3Bstroke%3Anone%22%20%2F%3E%3Cpath%20id%3D%22path3046%22%20d%3D%22m%20106.12803%2C1354.9291%20-50.435161%2C117.2641%2032.835892%2C0%209.305914%2C-23.4816%2054.099665%2C0%209.2577%2C23.4816%2033.55915%2C0%20-50.38695%2C-117.2641%20-38.23621%2C0%20z%20m%2018.66004%2C27.2909%2016.49028%2C41.0329%20-33.02877%2C0%2016.53849%2C-41.0329%20z%22%20style%3D%22fill%3A%23016fd0%3Bfill-opacity%3A1%3Bstroke%3Anone%22%20%2F%3E%3Cpath%20id%3D%22path3048%22%20d%3D%22m%20198.22282%2C1472.1735%200%2C-117.2642%2046.66163%2C0.1733%2027.13999%2C75.6045%2026.4901%2C-75.7778%2046.28848%2C0%200%2C117.2642%20-29.31604%2C0%200%2C-86.4052%20-31.07562%2C86.4052%20-25.71023%2C0%20-31.16227%2C-86.4052%200%2C86.4052%20z%22%20style%3D%22fill%3A%23016fd0%3Bfill-opacity%3A1%3Bstroke%3Anone%22%20%2F%3E%3Cpath%20id%3D%22path3050%22%20d%3D%22m%20364.86136%2C1472.1735%200%2C-117.2642%2095.66287%2C0%200%2C26.2302%20-66.03824%2C0%200%2C20.0583%2064.49529%2C0%200%2C24.6872%20-64.49529%2C0%200%2C20.8298%2066.03824%2C0%200%2C25.4587%20z%22%20style%3D%22fill%3A%23016fd0%3Bfill-opacity%3A1%3Bstroke%3Anone%22%20%2F%3E%3Cpath%20id%3D%22path3052%22%20d%3D%22m%20477.49667%2C1354.9291%200%2C117.2641%2029.31604%2C0%200%2C-41.6596%2012.34359%2C0%2035.15032%2C41.6596%2035.82536%2C0%20-38.57374%2C-43.2025%20c%2015.8309%2C-1.3359%2032.16085%2C-14.9233%2032.16085%2C-36.0182%200%2C-24.6765%20-19.36827%2C-38.0434%20-40.98459%2C-38.0434%20l%20-65.23783%2C0%20z%20m%2029.31604%2C26.2301%2033.51093%2C0%20c%208.03881%2C0%2013.88655%2C6.2882%2013.88655%2C12.3436%200%2C7.7905%20-7.57673%2C12.3436%20-13.45259%2C12.3436%20l%20-33.94489%2C0%200%2C-24.6872%20z%22%20style%3D%22fill%3A%23016fd0%3Bfill-opacity%3A1%3Bstroke%3Anone%22%20%2F%3E%3Cpath%20id%3D%22path3054%22%20d%3D%22m%20625.61982%2C1472.1735%20-29.93322%2C0%200%2C-117.2642%2029.93322%2C0%20z%22%20style%3D%22fill%3A%23016fd0%3Bfill-opacity%3A1%3Bstroke%3Anone%22%20%2F%3E%3Cpath%20id%3D%22path3056%22%20d%3D%22m%20696.59549%2C1472.1735%20-6.4611%2C0%20c%20-31.26172%2C0%20-50.24229%2C-24.6292%20-50.24229%2C-58.1499%200%2C-34.3488%2018.76806%2C-59.1143%2058.24634%2C-59.1143%20l%2032.40194%2C0%200%2C27.7731%20-33.58657%2C0%20c%20-16.026%2C0%20-27.35994%2C12.5067%20-27.35994%2C31.6305%200%2C22.7096%2012.95987%2C32.2476%2031.63047%2C32.2476%20l%207.71474%2C0%20z%22%20style%3D%22fill%3A%23016fd0%3Bfill-opacity%3A1%3Bstroke%3Anone%22%20%2F%3E%3Cpath%20style%3D%22fill%3A%23016fd0%3Bfill-opacity%3A1%3Bstroke%3Anone%22%20d%3D%22m%20760.3868%2C1354.9291%20-50.43515%2C117.2641%2032.83589%2C0%209.30591%2C-23.4816%2054.09967%2C0%209.25769%2C23.4816%2033.55915%2C0%20-50.38694%2C-117.2641%20-38.23622%2C0%20z%20m%2018.66005%2C27.2909%2016.49027%2C41.0329%20-33.02876%2C0%2016.53849%2C-41.0329%20z%22%20id%3D%22path3058%22%20%2F%3E%3Cpath%20id%3D%22path3060%22%20d%3D%22m%20852.43338%2C1472.1735%200%2C-117.2642%2037.27187%2C0%2047.59035%2C73.6759%200%2C-73.6759%2029.31604%2C0%200%2C117.2642%20-36.06644%2C0%20-48.79578%2C-75.6045%200%2C75.6045%20z%22%20style%3D%22fill%3A%23016fd0%3Bfill-opacity%3A1%3Bstroke%3Anone%22%20%2F%3E%3Cpath%20style%3D%22fill%3A%23016fd0%3Bfill-opacity%3A1%3Bstroke%3Anone%22%20d%3D%22m%20269.1985%2C1677.3858%200%2C-117.2642%2095.66286%2C0%200%2C26.2302%20-66.03823%2C0%200%2C20.0583%2064.49528%2C0%200%2C24.6872%20-64.49528%2C0%200%2C20.8298%2066.03823%2C0%200%2C25.4587%20z%22%20id%3D%22path3062%22%20%2F%3E%3Cpath%20id%3D%22path3064%22%20d%3D%22m%20737.94653%2C1677.3858%200%2C-117.2642%2095.66287%2C0%200%2C26.2302%20-66.03824%2C0%200%2C20.0583%2064.1867%2C0%200%2C24.6872%20-64.1867%2C0%200%2C20.8298%2066.03824%2C0%200%2C25.4587%20z%22%20style%3D%22fill%3A%23016fd0%3Bfill-opacity%3A1%3Bstroke%3Anone%22%20%2F%3E%3Cpath%20id%3D%22path3066%22%20d%3D%22m%20368.57408%2C1677.3858%2046.57779%2C-57.9089%20-47.68678%2C-59.3553%2036.93435%2C0%2028.39991%2C36.6932%2028.49635%2C-36.6932%2035.48784%2C0%20-47.05996%2C58.6321%2046.66353%2C58.6321%20-36.92851%2C0%20-27.57537%2C-36.1148%20-26.90518%2C36.1148%20z%22%20style%3D%22fill%3A%23016fd0%3Bfill-opacity%3A1%3Bstroke%3Anone%22%20%2F%3E%3Cpath%20style%3D%22fill%3A%23016fd0%3Bfill-opacity%3A1%3Bstroke%3Anone%22%20d%3D%22m%20499.86944%2C1560.1414%200%2C117.2641%2030.08751%2C0%200%2C-37.0308%2030.85899%2C0%20c%2026.11107%2C0%2045.90274%2C-13.8524%2045.90274%2C-40.7917%200%2C-22.3164%20-15.52271%2C-39.4416%20-42.09358%2C-39.4416%20l%20-64.75566%2C0%20z%20m%2030.08751%2C26.5194%2032.49837%2C0%20c%208.43546%2C0%2014.46515%2C5.1701%2014.46515%2C13.5008%200%2C7.8262%20-5.99925%2C13.5008%20-14.56158%2C13.5008%20l%20-32.40194%2C0%200%2C-27.0016%20z%22%20id%3D%22path3068%22%20%2F%3E%3Cpath%20style%3D%22fill%3A%23016fd0%3Bfill-opacity%3A1%3Bstroke%3Anone%22%20d%3D%22m%20619.44802%2C1560.1216%200%2C117.2642%2029.31604%2C0%200%2C-41.6597%2012.34359%2C0%2035.15032%2C41.6597%2035.82536%2C0%20-38.57374%2C-43.2026%20c%2015.83089%2C-1.3361%2032.16085%2C-14.9233%2032.16085%2C-36.0183%200%2C-24.6764%20-19.36827%2C-38.0433%20-40.98459%2C-38.0433%20l%20-65.23783%2C0%20z%20m%2029.31604%2C26.2302%2033.51093%2C0%20c%208.03881%2C0%2013.88654%2C6.2881%2013.88654%2C12.3435%200%2C7.7906%20-7.57673%2C12.3436%20-13.45259%2C12.3436%20l%20-33.94488%2C0%200%2C-24.6871%20z%22%20id%3D%22path3072%22%20%2F%3E%3Cpath%20id%3D%22path3074%22%20d%3D%22m%20847.18735%2C1677.3858%200%2C-25.4587%2058.67066%2C0%20c%208.68115%2C0%2012.44003%2C-4.6912%2012.44003%2C-9.8363%200%2C-4.9296%20-3.74703%2C-9.9134%20-12.44003%2C-9.9134%20l%20-26.5126%2C0%20c%20-23.04571%2C0%20-35.88042%2C-14.0409%20-35.88042%2C-35.1214%200%2C-18.8023%2011.75348%2C-36.9344%2045.99918%2C-36.9344%20l%2057.08913%2C0%20-12.3436%2C26.3844%20-49.37438%2C0%20c%20-9.43821%2C0%20-12.3436%2C4.9526%20-12.3436%2C9.6821%200%2C4.8612%203.59036%2C10.222%2010.80065%2C10.222%20l%2027.77309%2C0%20c%2025.69029%2C0%2036.83792%2C14.5724%2036.83792%2C33.6556%200%2C20.5163%20-12.42212%2C37.3201%20-38.23646%2C37.3201%20z%22%20style%3D%22fill%3A%23016fd0%3Bfill-opacity%3A1%3Bstroke%3Anone%22%20%2F%3E%3Cpath%20style%3D%22fill%3A%23016fd0%3Bfill-opacity%3A1%3Bstroke%3Anone%22%20d%3D%22m%20954.78398%2C1677.3858%200%2C-25.4587%2058.67062%2C0%20c%208.6812%2C0%2012.4401%2C-4.6912%2012.4401%2C-9.8363%200%2C-4.9296%20-3.7471%2C-9.9134%20-12.4401%2C-9.9134%20l%20-26.51256%2C0%20c%20-23.04571%2C0%20-35.88043%2C-14.0409%20-35.88043%2C-35.1214%200%2C-18.8023%2011.75348%2C-36.9344%2045.99918%2C-36.9344%20l%2057.08911%2C0%20-12.3436%2C26.3844%20-49.37436%2C0%20c%20-9.4382%2C0%20-12.34359%2C4.9526%20-12.34359%2C9.6821%200%2C4.8612%203.59035%2C10.222%2010.80064%2C10.222%20l%2027.77311%2C0%20c%2025.6903%2C0%2036.8379%2C14.5724%2036.8379%2C33.6556%200%2C20.5163%20-12.4221%2C37.3201%20-38.2365%2C37.3201%20z%22%20id%3D%22path3076%22%20%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E%3Crect%20x%3D%22.5%22%20y%3D%22.5%22%20width%3D%2222%22%20height%3D%2216%22%20rx%3D%222.5%22%20fill%3D%22none%22%20stroke%3D%22%23dde1ea%22%2F%3E%3C%2Fg%3E%3Cg%20transform%3D%22translate(90%200)%22%20clip-path%3D%22url(%23c)%22%3E%3Crect%20width%3D%2223%22%20height%3D%2217%22%20fill%3D%22%23fff%22%2F%3E%3Csvg%20x%3D%220%22%20y%3D%220%22%20width%3D%2223%22%20height%3D%2217%22%20viewBox%3D%220%200%20300.00001%20231.511%22%20preserveAspectRatio%3D%22xMidYMid%20slice%22%3E%3Cdefs%20id%3D%22defs6422%22%20%2F%3E%3Cstyle%20id%3D%22style6319%22%20type%3D%22text%2Fcss%22%3E%20.st0%7Bfill%3A%23FFFFFF%3B%7D%20.st1%7Bfill%3Aurl(%23SVGID_1_)%3B%7D%20.st2%7Bfill%3Aurl(%23SVGID_2_)%3B%7D%20.st3%7Bfill%3Aurl(%23SVGID_3_)%3B%7D%20.st4%7Bfill%3Aurl(%23SVGID_4_)%3B%7D%20.st5%7Bfill%3Aurl(%23SVGID_5_)%3B%7D%20%3C%2Fstyle%3E%3Cg%20transform%3D%22translate(-9.4000001%2C96.810998)%22%20id%3D%22g6321%22%3E%3Cg%20transform%3D%22matrix(1.8215159%2C0%2C0%2C1.8215159%2C-8.5437653%2C-109.83667)%22%20id%3D%22g6323%22%3E%3Cpath%20style%3D%22fill%3A%23ffffff%22%20id%3D%22path6325%22%20d%3D%22m%20174%2C108.3%20c%200%2C14%20-11.4%2C25.4%20-25.4%2C25.4%20l%20-138.2%2C0%200%2C-100.6%20c%200%2C-14%2011.4%2C-25.4%2025.4%2C-25.4%20l%20138.2%2C0%200%2C100.6%20z%22%20class%3D%22st0%22%20%2F%3E%3Cg%20id%3D%22g6327%22%3E%3ClinearGradient%20gradientTransform%3D%22matrix(1.125%2C0%2C0%2C1.125%2C-11.9755%2C-13.8615)%22%20y2%3D%2281.398598%22%20x2%3D%22157.3299%22%20y1%3D%2281.398598%22%20x1%3D%22117.3856%22%20gradientUnits%3D%22userSpaceOnUse%22%20id%3D%22SVGID_1_%22%3E%3Cstop%20id%3D%22stop6330%22%20style%3D%22stop-color%3A%23007940%22%20offset%3D%220%22%20%2F%3E%3Cstop%20id%3D%22stop6332%22%20style%3D%22stop-color%3A%2300873F%22%20offset%3D%220.2285%22%20%2F%3E%3Cstop%20id%3D%22stop6334%22%20style%3D%22stop-color%3A%2340A737%22%20offset%3D%220.7433%22%20%2F%3E%3Cstop%20id%3D%22stop6336%22%20style%3D%22stop-color%3A%235CB531%22%20offset%3D%221%22%20%2F%3E%3C%2FlinearGradient%3E%3Cpath%20style%3D%22fill%3Aurl(%23SVGID_1_)%22%20id%3D%22path6338%22%20d%3D%22m%20129%2C82.5%2010.5%2C0%20c%200.3%2C0%201%2C-0.1%201.3%2C-0.1%202%2C-0.4%203.7%2C-2.2%203.7%2C-4.7%200%2C-2.4%20-1.7%2C-4.2%20-3.7%2C-4.7%20-0.3%2C-0.1%20-0.9%2C-0.1%20-1.3%2C-0.1%20l%20-10.5%2C0%200%2C9.6%20z%22%20class%3D%22st1%22%20%2F%3E%3ClinearGradient%20gradientTransform%3D%22matrix(1.125%2C0%2C0%2C1.125%2C-11.9755%2C-13.8615)%22%20y2%3D%2275.171402%22%20x2%3D%22157.3318%22%20y1%3D%2275.171402%22%20x1%3D%22117.3844%22%20gradientUnits%3D%22userSpaceOnUse%22%20id%3D%22SVGID_2_%22%3E%3Cstop%20id%3D%22stop6341%22%20style%3D%22stop-color%3A%23007940%22%20offset%3D%220%22%20%2F%3E%3Cstop%20id%3D%22stop6343%22%20style%3D%22stop-color%3A%2300873F%22%20offset%3D%220.2285%22%20%2F%3E%3Cstop%20id%3D%22stop6345%22%20style%3D%22stop-color%3A%2340A737%22%20offset%3D%220.7433%22%20%2F%3E%3Cstop%20id%3D%22stop6347%22%20style%3D%22stop-color%3A%235CB531%22%20offset%3D%221%22%20%2F%3E%3C%2FlinearGradient%3E%3Cpath%20style%3D%22fill%3Aurl(%23SVGID_2_)%22%20id%3D%22path6349%22%20d%3D%22m%20138.3%2C16.2%20c%20-10%2C0%20-18.2%2C8.1%20-18.2%2C18.2%20l%200%2C18.9%2025.7%2C0%20c%200.6%2C0%201.3%2C0%201.8%2C0.1%205.8%2C0.3%2010.1%2C3.3%2010.1%2C8.5%200%2C4.1%20-2.9%2C7.6%20-8.3%2C8.3%20l%200%2C0.2%20c%205.9%2C0.4%2010.4%2C3.7%2010.4%2C8.8%200%2C5.5%20-5%2C9.1%20-11.6%2C9.1%20l%20-28.2%2C0%200%2C37%2026.7%2C0%20c%2010%2C0%2018.2%2C-8.1%2018.2%2C-18.2%20l%200%2C-90.9%20-26.6%2C0%20z%22%20class%3D%22st2%22%20%2F%3E%3ClinearGradient%20gradientTransform%3D%22matrix(1.125%2C0%2C0%2C1.125%2C-11.9755%2C-13.8615)%22%20y2%3D%2268.399101%22%20x2%3D%22157.33051%22%20y1%3D%2268.399101%22%20x1%3D%22117.3846%22%20gradientUnits%3D%22userSpaceOnUse%22%20id%3D%22SVGID_3_%22%3E%3Cstop%20id%3D%22stop6352%22%20style%3D%22stop-color%3A%23007940%22%20offset%3D%220%22%20%2F%3E%3Cstop%20id%3D%22stop6354%22%20style%3D%22stop-color%3A%2300873F%22%20offset%3D%220.2285%22%20%2F%3E%3Cstop%20id%3D%22stop6356%22%20style%3D%22stop-color%3A%2340A737%22%20offset%3D%220.7433%22%20%2F%3E%3Cstop%20id%3D%22stop6358%22%20style%3D%22stop-color%3A%235CB531%22%20offset%3D%221%22%20%2F%3E%3C%2FlinearGradient%3E%3Cpath%20style%3D%22fill%3Aurl(%23SVGID_3_)%22%20id%3D%22path6360%22%20d%3D%22m%20143.2%2C63.1%20c%200%2C-2.4%20-1.7%2C-4%20-3.7%2C-4.3%20-0.2%2C0%20-0.7%2C-0.1%20-1%2C-0.1%20l%20-9.5%2C0%200%2C8.8%209.5%2C0%20c%200.3%2C0%200.9%2C0%201%2C-0.1%202%2C-0.3%203.7%2C-1.9%203.7%2C-4.3%20z%22%20class%3D%22st3%22%20%2F%3E%3C%2Fg%3E%3ClinearGradient%20gradientTransform%3D%22matrix(1.125%2C0%2C0%2C1.125%2C-11.9755%2C-13.8615)%22%20y2%3D%2275.171402%22%20x2%3D%2268.522102%22%20y1%3D%2275.171402%22%20x1%3D%2227.9594%22%20gradientUnits%3D%22userSpaceOnUse%22%20id%3D%22SVGID_4_%22%3E%3Cstop%20id%3D%22stop6363%22%20style%3D%22stop-color%3A%231F286F%22%20offset%3D%220%22%20%2F%3E%3Cstop%20id%3D%22stop6365%22%20style%3D%22stop-color%3A%23004E94%22%20offset%3D%220.4751%22%20%2F%3E%3Cstop%20id%3D%22stop6367%22%20style%3D%22stop-color%3A%230066B1%22%20offset%3D%220.8261%22%20%2F%3E%3Cstop%20id%3D%22stop6369%22%20style%3D%22stop-color%3A%23006FBC%22%20offset%3D%221%22%20%2F%3E%3C%2FlinearGradient%3E%3Cpath%20style%3D%22fill%3Aurl(%23SVGID_4_)%22%20id%3D%22path6371%22%20d%3D%22m%2037.7%2C16.2%20c%20-10%2C0%20-18.2%2C8.1%20-18.2%2C18.2%20l%200%2C44.9%20c%205.1%2C2.5%2010.4%2C4.1%2015.7%2C4.1%206.3%2C0%209.7%2C-3.8%209.7%2C-9%20l%200%2C-21.2%2015.6%2C0%200%2C21.1%20c%200%2C8.2%20-5.1%2C14.9%20-22.4%2C14.9%20-10.5%2C0%20-18.7%2C-2.3%20-18.7%2C-2.3%20l%200%2C38.3%2026.7%2C0%20c%2010%2C0%2018.2%2C-8.1%2018.2%2C-18.2%20l%200%2C-90.8%20-26.6%2C0%20z%22%20class%3D%22st4%22%20%2F%3E%3ClinearGradient%20gradientTransform%3D%22matrix(1.125%2C0%2C0%2C1.125%2C-11.9755%2C-13.8615)%22%20y2%3D%2275.171402%22%20x2%3D%22111.8553%22%20y1%3D%2275.171402%22%20x1%3D%2272.459503%22%20gradientUnits%3D%22userSpaceOnUse%22%20id%3D%22SVGID_5_%22%3E%3Cstop%20id%3D%22stop6374%22%20style%3D%22stop-color%3A%236C2C2F%22%20offset%3D%220%22%20%2F%3E%3Cstop%20id%3D%22stop6376%22%20style%3D%22stop-color%3A%23882730%22%20offset%3D%220.1735%22%20%2F%3E%3Cstop%20id%3D%22stop6378%22%20style%3D%22stop-color%3A%23BE1833%22%20offset%3D%220.5731%22%20%2F%3E%3Cstop%20id%3D%22stop6380%22%20style%3D%22stop-color%3A%23DC0436%22%20offset%3D%220.8585%22%20%2F%3E%3Cstop%20id%3D%22stop6382%22%20style%3D%22stop-color%3A%23E60039%22%20offset%3D%221%22%20%2F%3E%3C%2FlinearGradient%3E%3Cpath%20style%3D%22fill%3Aurl(%23SVGID_5_)%22%20id%3D%22path6384%22%20d%3D%22m%2088%2C16.2%20c%20-10%2C0%20-18.2%2C8.1%20-18.2%2C18.2%20l%200%2C23.8%20c%204.6%2C-3.9%2012.6%2C-6.4%2025.5%2C-5.8%206.9%2C0.3%2014.3%2C2.2%2014.3%2C2.2%20l%200%2C7.7%20c%20-3.7%2C-1.9%20-8.1%2C-3.6%20-13.8%2C-4%20-9.8%2C-0.7%20-15.7%2C4.1%20-15.7%2C12.5%200%2C8.5%205.9%2C13.3%2015.7%2C12.5%205.7%2C-0.4%2010.1%2C-2.2%2013.8%2C-4%20l%200%2C7.7%20c%200%2C0%20-7.3%2C1.9%20-14.3%2C2.2%20-12.9%2C0.6%20-20.9%2C-1.9%20-25.5%2C-5.8%20l%200%2C42%2026.7%2C0%20c%2010%2C0%2018.2%2C-8.1%2018.2%2C-18.2%20l%200%2C-91%20-26.7%2C0%20z%22%20class%3D%22st5%22%20%2F%3E%3C%2Fg%3E%3Cg%20id%3D%22g6386%22%20%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E%3Crect%20x%3D%22.5%22%20y%3D%22.5%22%20width%3D%2222%22%20height%3D%2216%22%20rx%3D%222.5%22%20fill%3D%22none%22%20stroke%3D%22%23dde1ea%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E");
+  background-position: center;
+  background-size: 140px auto;
+  background-repeat: no-repeat;
+}
+
+/* The Card row is the four logos centred, as the Apple Pay and Google Pay buttons are, with the radio mark kept at the left edge: no tile, no label. The logos are the row's background, so they stay centred whatever else is in the row; the radio is taken out of the flow (absolute, 16px in, the same inset as the other rows) so it does not push them. The word "Card" is a bare text node in the button, so it cannot be removed, only made invisible (it stays for screen readers); the third id beats the theme's text colour. The label rule below still sets the font size, which is also what sizes the radio (its inline size is 1.3em). The row is 50px high like the wallet buttons, and the selected row keeps its outline and open form. */
+#payment-div #payment-method-tab #credit-card-tab {
+  position: relative;
+  justify-content: center;
+  height: 45px;
+  padding: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-indent: -999px;
+  color: transparent !important;
+}
+
+#payment-div #payment-method-tab #credit-card-tab > .fa {
+  position: absolute;
+  top: 50%;
+  left: 16px;
+  transform: translateY(-50%);
+  text-indent: 0;
+}
+
+#bank-account-tab::before {
+  content: "\f19c";
+  font-family: FontAwesome;
+  font-weight: 400;
+  font-size: 18px;
+}
+
+/* The PayID logo built from PayTo's own artwork: the same "Pay" pixels, then the iD mark (from the public setup page's PayID artwork) in the box PayTo's "to" mark sits in, at its size and colour. Inlined, same canvas as PayTo's image and the same height, so the two rows line up. */
+#pay-id-tab::before {
+  background-image: url("data:image/png;base64,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");
+  background-size: auto 26px;
+}
+
+#unionpay-tab::before {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' xmlns:xlink='http://www.w3.org/1999/xlink' viewBox='120 350 1260 800'%3E%3Cdefs%3E%3CclipPath id='7e34e23fa9'%3E%3Cpath d='M 130 363.1 L 744 363.1 L 744 1137 L 130 1137 Z M 130 363.1 ' clip-rule='nonzero'/%3E%3C/clipPath%3E%3CclipPath id='807ac706ec'%3E%3Cpath d='M 413 363.1 L 1038 363.1 L 1038 1137 L 413 1137 Z M 413 363.1 ' clip-rule='nonzero'/%3E%3C/clipPath%3E%3CclipPath id='567c2dcf78'%3E%3Cpath d='M 754 363.1 L 1367 363.1 L 1367 1137 L 754 1137 Z M 754 363.1 ' clip-rule='nonzero'/%3E%3C/clipPath%3E%3C/defs%3E%3Cg clip-path='url(%237e34e23fa9)'%3E%3Cpath fill='%23e21836' d='M 372.9 363.1 L 681.3 363.1 C 724.4 363.1 751.1 398.2 741.1 441.4 L 597.5 1058.1 C 587.4 1101.2 544.3 1136.3 501.2 1136.3 L 192.9 1136.3 C 149.9 1136.3 123.1 1101.2 133.1 1058.1 L 276.7 441.4 C 286.8 398.2 329.8 363.1 372.9 363.1 ' fill-opacity='1' fill-rule='nonzero'/%3E%3C/g%3E%3Cg clip-path='url(%23807ac706ec)'%3E%3Cpath fill='%2300447c' d='M 655.7 363.1 L 1010.3 363.1 C 1053.3 363.1 1033.9 398.2 1023.8 441.4 L 880.2 1058.1 C 870.2 1101.2 873.3 1136.3 830.2 1136.3 L 475.6 1136.3 C 432.4 1136.3 405.7 1101.2 415.9 1058.1 L 559.4 441.4 C 569.6 398.2 612.6 363.1 655.7 363.1 ' fill-opacity='1' fill-rule='nonzero'/%3E%3C/g%3E%3Cg clip-path='url(%23567c2dcf78)'%3E%3Cpath fill='%23007b84' d='M 996.2 363.1 L 1304.6 363.1 C 1347.7 363.1 1374.5 398.2 1364.4 441.4 L 1220.8 1058.1 C 1210.7 1101.2 1167.5 1136.3 1124.4 1136.3 L 816.2 1136.3 C 773.1 1136.3 746.3 1101.2 756.4 1058.1 L 900 441.4 C 910 398.2 953.1 363.1 996.2 363.1 ' fill-opacity='1' fill-rule='nonzero'/%3E%3C/g%3E%3Cpath fill='%23fefefe' d='M 453.5 560.8 C 421.8 561.1 412.4 560.8 409.4 560.1 C 408.3 565.5 386.9 664.3 386.8 664.4 C 382.2 684.3 378.8 698.6 367.5 707.8 C 361 713.1 353.4 715.7 344.7 715.7 C 330.6 715.7 322.4 708.7 321.1 695.5 L 320.8 690.9 C 320.8 690.9 325.1 664.2 325.1 664 C 325.1 664 347.5 574 351.6 562.1 C 351.8 561.4 351.8 561.1 351.9 560.8 C 308.2 561.1 300.4 560.8 299.9 560.1 C 299.6 561 298.5 566.6 298.5 566.6 L 275.6 668 L 273.6 676.6 L 269.8 704.8 C 269.8 713.1 271.4 719.9 274.7 725.7 C 285.2 744 315 746.7 331.8 746.7 C 353.5 746.7 373.9 742.1 387.7 733.7 C 411.6 719.5 417.8 697.4 423.4 677.8 L 426 667.7 C 426 667.7 449.1 574.3 453.1 562.1 C 453.2 561.4 453.3 561.1 453.5 560.8 Z M 532.2 636.2 C 526.6 636.2 516.4 637.5 507.3 642 C 504 643.7 500.8 645.7 497.5 647.6 L 500.5 636.8 L 498.8 635 C 479.4 639 475.1 639.5 457.2 642 L 455.7 643 C 453.6 660.3 451.7 673.3 444 707.2 C 441.1 719.7 438 732.4 435 744.9 L 435.8 746.4 C 454.2 745.5 459.7 745.5 475.7 745.7 L 477 744.3 C 479 733.9 479.3 731.5 483.8 710.4 C 485.9 700.4 490.3 678.5 492.5 670.7 C 496.5 668.8 500.4 667 504.2 667 C 513.1 667 512 674.8 511.7 677.9 C 511.3 683.2 508 700.2 504.7 714.9 L 502.5 724.4 C 500.9 731.3 499.2 738.1 497.6 745.1 L 498.3 746.4 C 516.4 745.5 522 745.5 537.4 745.7 L 539.2 744.3 C 542 728.1 542.9 723.7 547.8 700.1 L 550.3 689.2 C 555.2 668 557.6 657.2 553.9 648.4 C 550.1 638.5 540.7 636.2 532.2 636.2 Z M 620.1 658.4 C 610.5 660.3 604.4 661.5 598.3 662.3 C 592.2 663.3 586.3 664.2 577 665.5 L 576.3 666.1 L 575.6 666.7 C 574.6 673.6 573.9 679.6 572.7 686.6 C 571.6 693.9 569.9 702.2 567.2 714.1 C 565.1 723.2 564 726.4 562.8 729.6 C 561.6 732.8 560.3 735.9 557.9 744.9 L 558.5 745.7 L 558.9 746.4 C 567.6 746 573.3 745.7 579.2 745.7 C 585 745.5 591.1 745.7 600.4 745.7 L 601.3 745.1 L 602.1 744.3 C 603.5 736.2 603.7 734.1 604.5 730.1 C 605.3 725.9 606.8 720.1 610.2 704.4 C 611.9 697.1 613.7 689.8 615.4 682.3 C 617.1 674.8 619 667.5 620.8 660.1 L 620.5 659.2 Z M 620.3 628.4 C 611.6 623.2 596.2 624.9 585.9 632 C 575.6 639 574.4 648.9 583.1 654.2 C 591.7 659.2 607.2 657.7 617.4 650.5 C 627.7 643.4 629 633.5 620.3 628.4 Z M 673.3 748.1 C 691 748.1 709.1 743.2 722.8 728.7 C 733.3 716.9 738.1 699.5 739.8 692.3 C 745.2 668.4 741 657.3 735.6 650.5 C 727.6 640.2 713.3 636.8 698.5 636.8 C 689.6 636.8 668.4 637.7 651.8 653 C 640 664 634.5 679 631.1 693.3 C 627.8 707.9 624 734.2 648.1 744 C 655.6 747.2 666.3 748.1 673.3 748.1 Z M 671.9 694.4 C 675.9 676.3 680.8 661.2 693.1 661.2 C 702.7 661.2 703.4 672.4 699.1 690.6 C 698.4 694.6 694.8 709.5 690.1 715.9 C 686.8 720.6 682.8 723.5 678.5 723.5 C 677.2 723.5 669.5 723.5 669.4 712 C 669.3 706.4 670.5 700.6 671.9 694.4 Z M 784 745.7 L 785.4 744.3 C 787.3 733.9 787.7 731.5 792 710.4 C 794.2 700.4 798.7 678.5 800.8 670.7 C 804.8 668.8 808.7 667 812.5 667 C 821.4 667 820.3 674.8 820 677.9 C 819.7 683.2 816.4 700.2 813 714.9 L 810.9 724.3 C 809.3 731.3 807.5 738.1 806 745.1 L 806.6 746.4 C 824.8 745.5 830.1 745.5 845.7 745.7 L 847.6 744.3 C 850.3 728.1 851 723.7 856.1 700.1 L 858.6 689.2 C 863.4 667.9 865.9 657.2 862.3 648.4 C 858.3 638.5 848.9 636.2 840.5 636.2 C 834.9 636.2 824.7 637.5 815.6 642 C 812.3 643.7 809.1 645.7 805.9 647.7 L 808.7 636.8 L 807.2 635 C 787.8 639 783.3 639.5 765.4 642 L 764 643 C 761.9 660.3 760.1 673.3 752.4 707.2 C 749.4 719.7 746.4 732.4 743.3 744.9 L 744.2 746.4 C 762.6 745.5 768.1 745.5 784 745.7 Z M 917.5 746.4 C 918.7 740.9 925.5 707.8 925.5 707.8 C 925.5 707.8 931.3 683.5 931.7 682.6 C 931.7 682.6 933.5 680.1 935.3 679.1 L 938 679.1 C 963.2 679.1 991.7 679.1 1014.1 662.7 C 1029.3 651.4 1039.7 634.7 1044.3 614.5 C 1045.5 609.5 1046.4 603.6 1046.4 597.7 C 1046.4 590 1044.8 582.3 1040.4 576.3 C 1029 560.3 1006.3 560.1 980.1 559.9 C 980 559.9 967.2 560.1 967.2 560.1 C 933.6 560.5 920.2 560.3 914.7 559.7 C 914.2 562.1 913.3 566.5 913.3 566.5 C 913.3 566.5 901.3 622.2 901.3 622.2 C 901.3 622.2 872.6 740.7 871.2 746.2 C 900.5 745.9 912.5 745.9 917.5 746.4 Z M 939.8 647.5 C 939.8 647.5 952.6 591.9 952.5 592.1 L 952.9 589.3 L 953.1 587.1 L 958.2 587.6 C 958.2 587.6 984.5 589.9 985.2 590 C 995.5 594 999.8 604.4 996.8 617.9 C 994.1 630.3 986.1 640.7 975.8 645.7 C 967.3 649.9 956.9 650.3 946.2 650.3 L 939.3 650.3 Z M 1019.3 695.4 C 1015.9 709.8 1012 736.1 1036.1 745.5 C 1043.8 748.7 1050.6 749.7 1057.6 749.4 C 1065 749 1071.8 745.3 1078.1 739.9 C 1077.6 742.1 1077 744.3 1076.4 746.5 L 1077.5 747.9 C 1094.8 747.2 1100.2 747.2 1118.9 747.3 L 1120.6 746 C 1123.4 729.9 1125.9 714.3 1133 683.5 C 1136.5 668.8 1140 654.2 1143.5 639.5 L 1143 637.9 C 1123.6 641.5 1118.4 642.2 1099.8 644.9 L 1098.4 646 C 1098.2 647.5 1098 648.9 1097.9 650.4 C 1095 645.7 1090.8 641.7 1084.3 639.2 C 1076 636 1056.6 640.2 1039.9 655.4 C 1028.1 666.2 1022.5 681.1 1019.3 695.4 Z M 1059.9 696.3 C 1064.1 678.6 1068.8 663.5 1081.2 663.5 C 1089 663.5 1093.1 670.7 1092.2 683 C 1091.6 686.1 1090.9 689.3 1090 692.9 C 1088.8 698.2 1087.4 703.4 1086.1 708.7 C 1084.8 712.3 1083.3 715.6 1081.6 717.9 C 1078.4 722.4 1070.9 725.2 1066.5 725.2 C 1065.3 725.2 1057.7 725.2 1057.4 714 C 1057.4 708.4 1058.5 702.6 1059.9 696.3 Z M 1272.1 637.7 L 1270.6 636 C 1251.5 639.9 1248 640.5 1230.4 642.9 L 1229.1 644.2 C 1229.1 644.4 1229 644.7 1228.9 645 L 1228.9 644.7 C 1215.8 674.9 1216.2 668.4 1205.5 692.2 C 1205.4 691.1 1205.4 690.5 1205.4 689.3 L 1202.7 637.7 L 1201 636 C 1181 639.9 1180.5 640.5 1162 642.9 L 1160.6 644.2 C 1160.4 644.8 1160.4 645.5 1160.2 646.2 L 1160.4 646.5 C 1162.7 658.3 1162.1 655.7 1164.4 674.4 C 1165.5 683.5 1167 692.7 1168 701.8 C 1169.9 716.9 1170.9 724.4 1173.1 747.5 C 1160.6 768.2 1157.7 776 1145.6 794.1 L 1145.7 794.3 L 1137.2 807.7 C 1136.2 809.1 1135.4 810.1 1134.1 810.5 C 1132.8 811.2 1131 811.3 1128.6 811.3 L 1123.9 811.3 L 1116.9 834.5 L 1140.9 835 C 1154.9 834.9 1163.8 828.3 1168.5 819.5 L 1183.6 793.6 L 1183.3 793.6 L 1184.9 791.8 C 1195.1 770 1272.1 637.7 1272.1 637.7 Z M 1019.3 942.9 L 1009.1 942.9 L 1046.8 818.4 L 1059.2 818.4 L 1063.2 805.6 L 1063.6 819.9 C 1063.1 828.7 1070 836.5 1088.2 835.2 L 1109.3 835.2 L 1116.5 811.2 L 1108.6 811.2 C 1104.1 811.2 1102 810.1 1102.2 807.6 L 1101.8 793.1 L 1062.8 793.1 L 1062.8 793.2 C 1050.2 793.5 1012.6 794.4 1005 796.4 C 995.8 798.8 986 805.8 986 805.8 L 989.9 793 L 953.4 793 L 945.8 818.4 L 907.7 944.8 L 900.3 944.8 L 893 968.6 L 965.7 968.6 L 963.2 976.5 L 999 976.5 L 1001.4 968.6 L 1011.4 968.6 Z M 989.5 843.7 C 983.7 845.3 972.8 850.3 972.8 850.3 L 982.5 818.4 L 1011.4 818.4 L 1004.4 841.6 C 1004.4 841.6 995.5 842.1 989.5 843.7 Z M 990.1 889.2 C 990.1 889.2 981 890.3 975 891.7 C 969.1 893.5 958 899.1 958 899.1 L 968 866 L 997.1 866 Z M 973.8 943.2 L 944.8 943.2 L 953.2 915.3 L 982.2 915.3 Z M 1043.8 866 L 1085.7 866 L 1079.7 885.5 L 1037.2 885.5 L 1030.9 906.8 L 1068 906.8 L 1039.9 946.5 C 1037.9 949.4 1036.1 950.4 1034.2 951.2 C 1032.2 952.2 1029.6 953.4 1026.6 953.4 L 1016.3 953.4 L 1009.3 976.8 L 1036.2 976.8 C 1050.2 976.8 1058.5 970.4 1064.6 962 L 1083.9 935.6 L 1088 962.4 C 1088.9 967.4 1092.5 970.4 1095 971.5 C 1097.7 972.9 1100.5 975.2 1104.4 975.5 C 1108.6 975.7 1111.7 975.9 1113.7 975.9 L 1126.9 975.9 L 1134.9 949.7 L 1129.7 949.7 C 1126.7 949.7 1121.5 949.2 1120.6 948.3 C 1119.7 947.1 1119.7 945.4 1119.3 942.7 L 1115.1 915.8 L 1097.9 915.8 L 1105.4 906.8 L 1147.8 906.8 L 1154.3 885.5 L 1115.1 885.5 L 1121.2 866 L 1160.3 866 L 1167.5 841.9 L 1050.9 841.9 Z M 690 948.6 L 699.7 916.1 L 739.9 916.1 L 747.3 891.9 L 707 891.9 L 713.2 871.8 L 752.5 871.8 L 759.8 848.4 L 661.4 848.4 L 654.3 871.8 L 676.6 871.8 L 670.7 891.9 L 648.3 891.9 L 640.8 916.5 L 663.2 916.5 L 650.1 959.6 C 648.4 965.3 651 967.4 652.6 970.1 C 654.3 972.7 656 974.4 659.8 975.3 C 663.7 976.2 666.4 976.7 670.1 976.7 L 715.4 976.7 L 723.5 949.9 L 703.4 952.7 C 699.5 952.7 688.8 952.2 690 948.6 Z M 694.6 792.8 L 684.4 811.2 C 682.2 815.3 680.2 817.8 678.5 818.9 C 676.9 819.9 673.8 820.3 669.4 820.3 L 664.1 820.3 L 657 843.8 L 674.6 843.8 C 683.1 843.8 689.6 840.7 692.7 839.2 C 696.1 837.4 696.9 838.4 699.5 835.9 L 705.5 830.8 L 760.6 830.8 L 767.9 806.2 L 727.6 806.2 L 734.6 792.8 Z M 775.9 949.1 C 775 947.8 775.7 945.4 777.1 940.4 L 792.2 890.5 L 845.7 890.5 C 853.6 890.4 859.2 890.3 862.9 890.1 C 866.8 889.6 871.1 888.2 875.8 885.7 C 880.6 883.1 883 880.3 885.1 877.1 C 887.4 873.9 891.2 866.9 894.4 856.1 L 913.3 793 L 857.7 793.3 C 857.7 793.3 840.6 795.8 833 798.6 C 825.4 801.7 814.6 810.4 814.6 810.4 L 819.6 793.1 L 785.2 793.1 L 737.1 952.7 C 735.4 958.9 734.3 963.4 734 966.1 C 733.9 969 737.7 971.9 740.1 974 C 743 976.2 747.3 975.9 751.3 976.2 C 755.6 976.5 761.7 976.7 770.2 976.7 L 796.6 976.7 L 804.7 949.4 L 781 951.6 C 778.5 951.6 776.7 950.2 775.9 949.1 Z M 801.9 856.8 L 858.2 856.8 L 854.6 868.1 C 854.1 868.3 852.9 867.5 847.2 868.2 L 798.4 868.2 Z M 813.2 819.2 L 869.9 819.2 L 865.8 832.7 C 865.8 832.7 839.1 832.5 834.8 833.2 C 815.9 836.5 804.9 846.6 804.9 846.6 Z M 855.8 905.6 C 855.4 907.3 854.6 908.3 853.6 909.1 C 852.5 909.8 850.6 910.1 847.9 910.1 L 839.8 910.1 L 840.3 896.4 L 807 896.4 L 805.6 963.2 C 805.6 968.1 806 970.8 809.5 973.1 C 813.1 975.9 823.9 976.2 838.6 976.2 L 859.5 976.2 L 867 951.2 L 848.8 952.2 L 842.8 952.6 C 841.9 952.2 841.1 951.9 840.3 951 C 839.5 950.2 838.2 950.7 838.4 945.9 L 838.6 928.8 L 857.6 928 C 867.9 928 872.3 924.6 876.1 921.4 C 879.7 918.4 880.9 914.9 882.2 910.1 L 885.4 894.9 L 859.2 894.9 Z M 855.8 905.6 ' fill-opacity='1' fill-rule='nonzero'/%3E%3C/svg%3E");
+  background-size: auto 24px;
+}
+
+#alipay-plus-tab::before {
+  background-color: #1677ff;
+  box-shadow: none;
+  background-image: url("/Content/Images/alipay-plus-color-dark-bg.png");
+  background-size: auto 20px;
+}
+
+#payment-method-tab .nav-link[id*="wechat" i]::before {
+  background-color: #07c160;
+  box-shadow: none;
+  background-image: url("/Content/Images/wechat-pay-mark-white.png");
+  background-size: auto 16px;
+}
+
+/* The compiled theme sets the base size and selected weight with !important; Figma method labels keep the reference's 15px / 600 in either state. */
+#payment-div #payment-method-tab .nav-link {
+  font-size: 15px !important;
+  font-weight: 600 !important;
+}
+
+/* ---------- card form ---------- */
+#payment-div .form-control,
+#payment-div .form-select,
+#payment-div .input-group-text {
+  border: 1px solid var(--zp-line);
+  border-radius: var(--zp-radius-field) !important;
+  background-color: var(--zp-card);
+  color: var(--zp-ink);
+  font-size: 15px !important;
+  box-shadow: none;
+}
+
+#payment-div .form-control,
+#payment-div .form-select {
+  height: 45px !important;
+  padding: 8px 14px;
+}
+
+#payment-div .input-group-text {
+  height: 45px;
+  padding: 0 14px;
+}
+
+/* Ace sets `box-shadow: none !important` on fields, and the theme's page-wide
+   border colour is !important, so the focus ring and border are as well. */
+#payment-div .form-control:focus,
+#payment-div .form-select:focus {
+  border-color: var(--zp-accent) !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--zp-accent) 18%, transparent) !important;
+}
+
+/* Joined fields round only their outer edges, as on public pay/setup. */
+#payment-div .input-group:has(> .form-control + .input-group-text) > .form-control {
+  border-radius: var(--zp-radius-field) 0 0 var(--zp-radius-field) !important;
+}
+
+#payment-div .input-group > .form-control + .input-group-text {
+  border-left: 0;
+  border-radius: 0 var(--zp-radius-field) var(--zp-radius-field) 0 !important;
+}
+
+#payment-div .input-group:has(> .input-group-text + .form-control) > .input-group-text {
+  border-right: 0;
+  border-radius: var(--zp-radius-field) 0 0 var(--zp-radius-field) !important;
+}
+
+#payment-div .input-group > .input-group-text + .form-control {
+  border-radius: 0 var(--zp-radius-field) var(--zp-radius-field) 0 !important;
+}
+
+@media (max-width: 767px) {
+  .row > .col-xs-12:has(#payment-div) > .col-sm-12 {
+    padding: 22px 16px 18px;
+    border-radius: 16px;
+  }
+
+  /* Public pay/setup use 16px controls to avoid iOS focus zoom. */
+  #payment-div .form-control,
+  #payment-div .form-select {
+    font-size: 16px !important;
+  }
+}
+/* Month, Year and CVV fill one line and never wrap: the expiry group (the two
+   selects and the "/" between them) takes 70% and the CVV group 30%, and the
+   selects and the field stretch to their group. The checkout gives the selects
+   and the field inline widths, and its own `.form-select` rule places the arrow
+   with !important, so the widths and the arrow position here are !important
+   too. The gaps and
+   the selects' left padding are kept small so a four-digit year still fits when
+   the card is narrow: measured with a fallback font, it fits down to a card
+   about 230px across (a 200px row inside the panel's padding), with about 4px
+   to spare at a 212px row; narrower than that the year is cut off. */
+#credit-card .row:has(#CardExpiryMonth) .col-12,
+#unionpay-card .row:has(#CardExpiryMonth) .col-12 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0;
+}
+
+#credit-card .row:has(#CardExpiryMonth) .form-group,
+#unionpay-card .row:has(#CardExpiryMonth) .form-group {
+  float: none;
+  margin: 0;
+  min-width: 0;
+}
+
+#credit-card .row:has(#CardExpiryMonth) .col-12 > :has(#CardExpiryMonth),
+#unionpay-card .row:has(#CardExpiryMonth) .col-12 > :has(#CardExpiryMonth) {
+  flex: 7 1 0%;
+}
+
+#credit-card .row:has(#CardExpiryMonth) .col-12 > :has(#Ccv),
+#unionpay-card .row:has(#CardExpiryMonth) .col-12 > :has(#Ccv) {
+  flex: 3 1 0%;
+}
+
+#credit-card div:has(> #CardExpiryMonth),
+#unionpay-card div:has(> #CardExpiryMonth) {
+  display: flex !important;
+  align-items: center;
+  gap: 4px;
+}
+
+#credit-card .form-select,
+#unionpay-card .form-select {
+  flex: 1 1 0%;
+  min-width: 0;
+  width: auto !important;
+  padding-left: 6px;
+  padding-right: 22px;
+  background-position: right 6px center !important;
+}
+
+#credit-card #Ccv,
+#unionpay-card #Ccv {
+  width: 100% !important;
+}
+
+#credit-card .form-group:has(> .checkbox),
+#unionpay-card .form-group:has(> .checkbox) {
+  margin-bottom: 10px;
+}
+
+/* The checkout gives the Store Card row an inline 20px of top padding. The row sits directly under the expiry and CVV fields, so it is taken out. */
+#credit-card .form-group:has(> .checkbox),
+#unionpay-card .form-group:has(> .checkbox) {
+  padding-top: 0 !important;
+}
+
+/* Consent inputs stay native and focusable; the plugin paints the tick on ::after. */
+#payment-div .checkbox {
+  position: relative;
+  padding-left: 0 !important;
+}
+
+#payment-div .checkbox > input[type="checkbox"] {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 20px !important;
+  height: 20px !important;
+  margin: 0 !important;
+  opacity: 0;
+  cursor: pointer;
+}
+
+#payment-div .checkbox > input[type="checkbox"] + label {
+  position: relative;
+  display: block;
+  margin: 0;
+  padding: 0 0 0 30px !important;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.5;
+  color: var(--zp-ink);
+  cursor: pointer;
+}
+
+#payment-div .checkbox > input[type="checkbox"] + label::before {
+  position: absolute;
+  top: 0;
+  left: 0;
+  box-sizing: border-box;
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  padding: 0;
+  border: 1.5px solid #b4bccc;
+  border-radius: 4px;
+  background: var(--zp-card);
+  box-shadow: none;
+}
+
+#payment-div .checkbox > input[type="checkbox"] + label::after {
+  top: 0;
+  left: 0;
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  padding: 0;
+  font-size: 14px;
+  line-height: 20px;
+  text-align: center;
+  color: transparent;
+}
+
+#payment-div .checkbox > input[type="checkbox"]:checked + label::before {
+  background: var(--zp-accent);
+  border-color: var(--zp-accent);
+}
+
+#payment-div .checkbox > input[type="checkbox"]:checked + label::after {
+  color: var(--zp-accent-ink);
+}
+
+#payment-div .checkbox > input[type="checkbox"]:focus-visible + label::before {
+  outline: 2px solid var(--zp-accent);
+  outline-offset: 2px;
+}
+
+#payment-div .checkbox > input[type="checkbox"]:disabled,
+#payment-div .checkbox > input[type="checkbox"]:disabled + label {
+  cursor: not-allowed;
+}
+
+/* ---------- terms and Proceed ---------- */
+#payment-div form#form > div:last-child {
+  order: 99;
+  flex-wrap: wrap !important;
+  row-gap: 16px;
+}
+
+#payment-div form#form > div:last-child > div {
+  flex: 1 1 100%;
+}
+
+/* Ace paints .btn-success green with !important in every state, so Proceed's
+   background and text colours are !important in every state as well. The button
+   has no border, so there is no border colour to set. */
+#payment-div .btn-success.btn-sm.btn {
+  display: block;
+  width: 100%;
+  height: 45px;
+  background-color: var(--zp-accent) !important;
+  color: var(--zp-accent-ink) !important;
+  border: 0;
+  border-radius: var(--zp-radius-field) !important;
+  padding: 0 24px;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+#payment-div .btn-success.btn-sm.btn:hover,
+#payment-div .btn-success.btn-sm.btn:focus,
+#payment-div .btn-success.btn-sm.btn:active {
+  background-color: var(--zp-accent-strong) !important;
+}
+
+/* Last, so a disabled button under the pointer stays the resting navy. */
+#payment-div .btn-success.btn-sm.btn:disabled,
+#payment-div .btn-success.btn-sm.btn.disabled {
+  background-color: var(--zp-accent) !important;
+  opacity: 0.55;
+}
+
+/* ---------- review step ----------
+   After Proceed the payment card swaps its form for #payment-confirmation-div:
+   the checkout's own "Payment Amount" title, the fee and total as loose bold
+   labels, and a small Pay Now. It gets the same title, soft rows and button as
+   the rest of the card. Spacing between rows is `gap` and not a margin, because
+   the checkout's form-group rules keep zeroing a margin, and Pay Now carries an
+   inline `width: 150px` that only an !important width can override. */
+#payment-confirmation-div .widget-header {
+  min-height: 0;
+  background-color: transparent;
+  border: 0;
+  padding: 0 0 6px;
+}
+
+#payment-confirmation-div .widget-header h4 {
+  display: block;
+  margin: 0 0 12px;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 30px;
+  color: var(--zp-ink) !important;
+}
+
+#payment-confirmation-div .widget-header h4 .ace-icon,
+#payment-confirmation-div .space-6 {
+  display: none;
+}
+
+#payment-confirmation-div .widget-main {
+  padding: 1px 0;
+}
+
+#payment-confirmation-div .final-amount-div {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+#payment-confirmation-div .final-amount-div > .clearfix,
+#payment-confirmation-div .final-amount-div > hr {
+  display: none;
+}
+
+#payment-confirmation-div .final-amount-div .form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 16px;
+  border-radius: var(--zp-radius-field);
+  background-color: var(--zp-receipt) !important;
+}
+
+#payment-confirmation-div .final-amount-div .form-group > label {
+  float: none;
+  width: auto;
+  margin: 0;
+  padding: 0;
+  text-align: left;
+}
+
+#payment-confirmation-div .final-amount-div .form-group > label:first-child {
+  color: var(--zp-ink-soft) !important;
+  font-size: 13px !important;
+  font-weight: 400 !important;
+  line-height: 1.4;
+}
+
+#payment-confirmation-div .final-amount-div .form-group > label:last-child {
+  color: var(--zp-ink) !important;
+  font-size: 16px !important;
+  font-weight: 600 !important;
+  line-height: 1.5;
+}
+
+#payment-confirmation-div .final-amount-div .total-payment-div > label:last-child {
+  font-size: 20px !important;
+  font-weight: 700 !important;
+}
+
+#pre-confirm-payment-buttons {
+  float: none !important;
+  width: 100%;
+  padding-top: 12px;
+}
+
+#pre-confirm-payment-buttons .btn-success.btn-sm.btn {
+  display: block;
+  width: 100% !important;
+  height: 45px;
+  background-color: var(--zp-accent) !important;
+  color: var(--zp-accent-ink) !important;
+  border: 0;
+  border-radius: var(--zp-radius-field) !important;
+  padding: 0 24px;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+#pre-confirm-payment-buttons .btn-success.btn-sm.btn:hover,
+#pre-confirm-payment-buttons .btn-success.btn-sm.btn:focus,
+#pre-confirm-payment-buttons .btn-success.btn-sm.btn:active {
+  background-color: var(--zp-accent-strong) !important;
+}
+
+/* The PayID view of the same step: the instruction line, then PayID name, PayID
+   (with Copy beside it) and reference as the same soft rows, then the countdown. */
+#payment-confirmation-div .pay-id-div {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-bottom: 12px;
+}
+
+#payment-confirmation-div .pay-id-div > p {
+  margin: 0;
+  color: var(--zp-ink-soft);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+#payment-confirmation-div .pay-id-div > .clearfix {
+  display: none;
+}
+
+#payment-confirmation-div .pay-id-div .form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 14px 16px;
+  border-radius: var(--zp-radius-field);
+  background-color: var(--zp-receipt) !important;
+}
+
+#payment-confirmation-div .pay-id-div .form-group > label.control-label {
+  float: none;
+  width: auto;
+  margin: 0;
+  padding: 0;
+  text-align: left;
+}
+
+#payment-confirmation-div .pay-id-div .form-group > label.control-label:first-child {
+  color: var(--zp-ink-soft) !important;
+  font-size: 13px !important;
+  font-weight: 400 !important;
+  line-height: 1.4;
+}
+
+#payment-confirmation-div .pay-id-div .form-group > label.control-label:last-child {
+  color: var(--zp-ink) !important;
+  font-size: 16px !important;
+  font-weight: 600 !important;
+  line-height: 1.5;
+}
+
+#payment-confirmation-div .pay-id-div .form-group > .col-xs-8 {
+  float: none;
+  width: auto;
+  padding: 0;
+}
+
+/* Copy sits beside the PayID when the row is wide enough and wraps under it when
+   it is not (the email and the button are about 280px together, and a card in a
+   750px modal has 254px of row). Wrapping is spelled out because breaking the
+   email across two lines instead is worse. */
+#payment-confirmation-div .pay-id-div .input-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+}
+
+#payment-confirmation-div .pay-id-div .input-group > label#dd-payid {
+  min-width: 0;
+  margin: 0 !important;
+  padding: 0;
+  color: var(--zp-ink) !important;
+  font-size: 16px !important;
+  font-weight: 600 !important;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+/* Copy is 28px against a 24px value line; the negative margin lets it overhang
+   the line so the row keeps the same height as the others. The checkout gives the
+   PayID value a margin-top of 8px, hence the important margin above. */
+#payment-confirmation-div .pay-id-div .input-group-addon {
+  display: block;
+  flex: none;
+  width: auto;
+  margin: -2px 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+#payment-confirmation-div .pay-id-div .payid-timer {
+  padding: 4px 0;
+  color: var(--zp-ink);
+  font-size: 32px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+#copy-payid-btn {
+  height: 28px;
+  padding: 0 14px;
+  border-radius: var(--zp-radius-sm) !important;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+/* ---------- footer ---------- */
+/* The merchant's footer (a snippet of its own, so its content varies) sits as
+   one centred line under both cards instead of at the bottom of the payment
+   card. It is the row that follows the form, lifted out of the card with
+   `position: absolute` and anchored to the cards' grid, as the amount is. Being
+   out of the flow it takes no room, so the grid reserves a bottom margin for it
+   (only when there is a footer); with the 14px gap above the footer and the
+   page's own 2px bottom padding that leaves 26px, which holds one line of logos.
+   A taller footer makes the page taller rather than being cut off. Stacked on a
+   phone a merchant's text wraps to many more lines than that, so there the
+   footer stays in the flow at the bottom of the payment card instead. The
+   footer's `p` holds the logos, a run of non-breaking spaces and the text, so it
+   is laid out as a centred wrapping row; the run stays as a little extra space
+   between the logos rather than being hidden, because any text a merchant
+   writes straight into the `p` would be hidden with it. */
+@media (min-width: 640px) {
+  .row > .col-xs-12:has(#payment-div .widget-main > form#form ~ .row) {
+    margin-bottom: 38px;
+  }
+}
+
+#payment-div .widget-main > form#form ~ .row {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  display: block;
+  margin: 14px 0 0;
+  padding: 0 15px;
+  text-align: center;
+}
+
+@media (max-width: 639.98px) {
+  #payment-div .widget-main > form#form ~ .row {
+    position: static;
+    margin: 18px 0 0;
+    padding: 0;
+  }
+}
+
+#payment-div .widget-main > form#form ~ .row > span {
+  display: block;
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+}
+
+#payment-div .widget-main > form#form ~ .row p {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px 0;
+  margin: 0;
+  font-size: 12px;
+}
+
+#payment-div .widget-main > form#form ~ .row p br {
+  display: none;
+}
+
+#payment-div .widget-main > form#form ~ .row p > a,
+#payment-div .widget-main > form#form ~ .row p > span {
+  margin: 0 6px;
+}
+
+#payment-div .widget-main > form#form ~ .row p img {
+  display: block;
+  height: 24px !important;
+  width: auto !important;
+  max-width: none;
+  margin: 0;
+}
+
+/* The text carries inline sizes of its own (8pt), hence !important. Its colour
+   is left to the theme's footer colour, which the text and the links share. */
+#payment-div .widget-main > form#form ~ .row p span {
+  font-size: 12px !important;
+}
+
+/* ---------- status dialogs ---------- */
+/* Same SweetAlert2 markup as public pay/setup; the library keeps the loading state and messages. */
+.swal2-container:has(.swal2-modal).swal2-shown {
+  background: rgba(15, 23, 42, 0.42);
+  backdrop-filter: blur(3px);
+}
+
+.swal2-modal {
+  width: 360px !important;
+  padding: 32px 28px !important;
+  border: 1px solid var(--zp-line);
+  border-radius: var(--zp-radius);
+  background: var(--zp-card) !important;
+  font-family: var(--zp-font);
+  box-shadow: 0 24px 72px rgba(15, 23, 42, 0.22);
+}
+
+.swal2-modal .swal2-title {
+  margin: 0 0 10px;
+  color: var(--zp-ink);
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.swal2-modal .swal2-content {
+  color: #5f6880;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.6;
+}
+
+.swal2-modal .swal2-icon.swal2-info {
+  border-color: var(--zp-accent) !important;
+  color: var(--zp-accent) !important;
+}
+
+.swal2-modal.swal2-loading .swal2-icon {
+  display: none !important;
+}
+
+.swal2-modal.swal2-loading .swal2-buttonswrapper {
+  margin-top: 20px;
+}
+
+.swal2-modal.swal2-loading .swal2-buttonswrapper.swal2-loading .swal2-confirm.swal2-styled {
+  width: 32px;
+  height: 32px;
+  margin: 0;
+  border-width: 3px;
+  border-color: var(--zp-line) !important;
+  border-top-color: var(--zp-accent) !important;
+  animation-duration: 0.85s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .swal2-container:has(.swal2-modal) {
+    transition: none;
+  }
+
+  .swal2-modal.swal2-loading .swal2-buttonswrapper.swal2-loading .swal2-confirm.swal2-styled {
+    animation: none;
+  }
+}
+
+/* ---------- narrow ---------- */
+@media (max-width: 559px) {
+  .main-container.container {
+    padding: 0 12px;
+  }
+
+  .row > .col-xs-12:has(#payment-div) > .col-sm-12 {
+    padding: 22px 16px 18px;
+  }
+}
+
+/* ---------- card brand logos: hidden by the layout ---------- */
+/* The Card row draws its own logos, so the checkout's logo strip is always hidden. The layout owns this, so the builder's "Hide card brand logos" switch is locked on rather than emitting the same rule. */
+#credit-card > div.pull-right,
+#unionpay-card > div.pull-right {
+  display: none !important;
+}
+
+/* ---------- method rows: badge only, centred ---------- */
+/* Everything between the two markers is the three sheets in assets/variants/ (hide-pay-labels, hide-pay-outlines, center-pay-badges), joined in that order. scripts/gen-export-matrix.ts refuses to run if they drift apart, and cuts this block out to build the older variants. */
+/* @method-badges:start */
+/* Method rows except Card (PayTo, Bank Account, PayID, UnionPay, AliPay+, WeChat Pay): the label text is hidden and the badge stands alone. */
+/* The label is plain text inside the button, so it is made transparent (the text stays in the page for screen readers). Not `font-size: 0`: the radio mark is sized in `em` by the checkout's inline style and would shrink to nothing. The radio mark and the drawn badges set their own colours. */
+#payment-div #payment-method-tab #payto-bank-account-tab,
+#payment-div #payment-method-tab #bank-account-tab,
+#payment-div #payment-method-tab #pay-id-tab,
+#payment-div #payment-method-tab #unionpay-tab,
+#payment-div #payment-method-tab #alipay-plus-tab,
+#payment-div #payment-method-tab .nav-link[id*="wechat" i] {
+  color: transparent !important;
+}
+
+/* Method rows except Card: the badges lose their grey outline. */
+/* The outline is a 1px inset shadow, not a border; the AliPay+ and WeChat Pay tiles have none already. These repeat the layout's own selectors and come after them. */
+#payment-div .nav-tabs .nav-link img[src$="PayTo_symbol-Black-WEB.svg"] {
+  box-shadow: none;
+}
+
+#bank-account-tab::before,
+#pay-id-tab::before,
+#unionpay-tab::before {
+  box-shadow: none;
+}
+
+/* Method rows except Card: the badge is centred, as the Card row centres its logos, with the radio mark kept at the left edge. Needs the labels hidden. */
+/* The radio is taken out of the flow, 16px in like the Card row. */
+#payment-div #payment-method-tab .nav-link:not(#credit-card-tab) {
+  position: relative;
+  justify-content: center;
+}
+
+#payment-div #payment-method-tab .nav-link:not(#credit-card-tab) > .fa {
+  position: absolute;
+  top: 50%;
+  left: 16px;
+  transform: translateY(-50%);
+}
+
+/* The badge is placed at the row's middle rather than centred in the flow: the transparent label is still a flex item and would push a flow-centred badge off to one side. PayTo's badge is a real image, the others are drawn by `::before`. */
+#payment-div #payment-method-tab .nav-link:not(#credit-card-tab)::before,
+#payment-div .nav-tabs .nav-link img[src$="PayTo_symbol-Black-WEB.svg"] {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+/* @method-badges:end */
+
+/* theme variables: surfaces, ink and accent the layouts consume */
+:root {
+  --zp-page: #ffffff;
+  --zp-card: #ffffff;
+  --zp-receipt: #f6f6f8;
+  --zp-rail: #f8f9fa;
+  --zp-ink: #1f2a56;
+  --zp-ink-soft: #50597b;
+  --zp-muted: #7d839d;
+  --zp-faint: #aaaebf;
+  --zp-track: #edeef1;
+  --zp-line: #dde1ea;
+  --zp-accent: #27346e;
+  --zp-accent-ink: #ffffff;
+  --zp-accent-strong: #1d2858;
+  --zp-accent-soft: #e5e7ee;
+  --zp-font: "Open Sans", sans-serif;
+}
+
+@font-face {
+  font-family: "Open Sans";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("https://cdn.zenithpayments.support/fonts/open-sans/open-sans-latin.woff2") format("woff2");
+}
+
+body, body *:not(.fa, .ace-icon, .glyphicon, [class*="fa-"], .gpay-button, .apple-pay-btn, .apple-pay-btn *) {
+  font-family: "Open Sans", sans-serif !important;
+}
+
+/* borders and dividers, page-wide */
+input, select, textarea, .form-control, .form-select, .nav-link, .input-group-text, .widget-header, #payment-method-tab, hr, .separator, .separator::before, .separator::after {
+  border-color: #dde1ea !important;
+}
+
+/* checkout scrollbar: follow the preset's accent colour */
+html {
+  scrollbar-color: #ffffff transparent;
+  scrollbar-width: thin;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  min-height: 40px;
+  background-color: #ffffff;
+  background-clip: padding-box;
+  border: 2px solid transparent;
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: #ffffff;
+  border-width: 1px;
+}
+
+/* page zoom: the whole checkout drawn at 90% */
+body {
+  zoom: 0.9;
+}
+
+/* Adapted text: payment fields, inked from the field's own surface */
+#payment-div#payment-div .form-control::placeholder,
+#payment-div#payment-div .form-select::placeholder {
+  color: #6d7591 !important;
+  opacity: 1 !important;
+}
+
+html, body {
+  background-color: #ffffff !important;
+}
+
+body {
+  box-shadow: 0 0 0 100vmax #ffffff !important;
+}
+
+body *:not(:where(input, select, textarea, button, .input-group-text, .col-xs-12:has(#payment-div), .col-sm-12:has(#payment-div), .col-sm-12:has(#payment-information-div), #payment-method-tab, .swal2-container, .swal2-container *, .blockUI, .blockUI *, .modal, .modal *, .alert.alert-warning, div.page-content, #payment-div, #payment-method-tab .nav-link.active, #payment-method-tab .nav-link:not(.active))) {
+  background-color: transparent !important;
+}
+
+body, body *:not(:where(.swal2-container, .swal2-container *, .blockUI, .blockUI *, .modal, .modal *)) {
+  color: #1f2a56 !important;
+}
+
+.swal2-container, .blockUI, .modal {
+  color: initial !important;
+}
+
+body {
+  --bs-secondary-color: color-mix(in srgb, #1f2a56 70%, transparent) !important;
+}
+
+.alert.alert-warning {
+  background-color: #fff0c2 !important;
+}
+
+.alert.alert-warning *:not(:where(input, select, textarea, button, .input-group-text, .col-xs-12:has(#payment-div), .col-sm-12:has(#payment-div), .col-sm-12:has(#payment-information-div), #payment-method-tab, .swal2-container, .swal2-container *, .blockUI, .blockUI *, .modal, .modal *, div.page-content, #payment-div, #payment-method-tab .nav-link.active, #payment-method-tab .nav-link:not(.active))) {
+  background-color: transparent !important;
+}
+
+.alert.alert-warning, .alert.alert-warning *:not(:where(.swal2-container, .swal2-container *, .blockUI, .blockUI *, .modal, .modal *)) {
+  color: #614400 !important;
+}
+
+.swal2-container, .blockUI, .modal {
+  color: initial !important;
+}
+
+.alert.alert-warning {
+  --bs-secondary-color: color-mix(in srgb, #614400 70%, transparent) !important;
+}
+
+.alert.alert-warning, .alert.alert-warning * {
+  font-weight: 600 !important;
+}
+
+.alert.alert-warning {
+  border-color: #9a7320 !important;
+}
+
+.row.align-items-center, .row.align-items-center *:not(:where(.swal2-container, .swal2-container *, .blockUI, .blockUI *, .modal, .modal *)) {
+  color: #1f2a56 !important;
+}
+
+.swal2-container, .blockUI, .modal {
+  color: initial !important;
+}
+
+.row.align-items-center {
+  --bs-secondary-color: color-mix(in srgb, #1f2a56 70%, transparent) !important;
+}
+
+.row.align-items-center, .row.align-items-center * {
+  font-weight: 600 !important;
+}
+
+div.page-content {
+  background-color: #ffffff !important;
+}
+
+div.page-content *:not(:where(input, select, textarea, button, .input-group-text, .col-xs-12:has(#payment-div), .col-sm-12:has(#payment-div), .col-sm-12:has(#payment-information-div), #payment-method-tab, .swal2-container, .swal2-container *, .blockUI, .blockUI *, .modal, .modal *, .alert.alert-warning, #payment-div, #payment-method-tab .nav-link.active, #payment-method-tab .nav-link:not(.active))) {
+  background-color: transparent !important;
+}
+
+div.page-content, div.page-content *:not(:where(.swal2-container, .swal2-container *, .blockUI, .blockUI *, .modal, .modal *)) {
+  color: #1f2a56 !important;
+}
+
+.swal2-container, .blockUI, .modal {
+  color: initial !important;
+}
+
+div.page-content {
+  --bs-secondary-color: color-mix(in srgb, #1f2a56 70%, transparent) !important;
+}
+
+#payment-information-div, #payment-information-div *:not(:where(.swal2-container, .swal2-container *, .blockUI, .blockUI *, .modal, .modal *)) {
+  color: #1f2a56 !important;
+}
+
+.swal2-container, .blockUI, .modal {
+  color: initial !important;
+}
+
+#payment-information-div {
+  --bs-secondary-color: color-mix(in srgb, #1f2a56 70%, transparent) !important;
+}
+
+#payment-information-div .widget-title, #payment-information-div .widget-title *:not(:where(.swal2-container, .swal2-container *, .blockUI, .blockUI *, .modal, .modal *)) {
+  color: #1f2a56 !important;
+}
+
+.swal2-container, .blockUI, .modal {
+  color: initial !important;
+}
+
+#payment-information-div .widget-title {
+  --bs-secondary-color: color-mix(in srgb, #1f2a56 70%, transparent) !important;
+}
+
+#payment-information-div .widget-title, #payment-information-div .widget-title * {
+  font-weight: 700 !important;
+}
+
+#payment-information-div .widget-title .ace-icon, #payment-information-div .widget-title .ace-icon *:not(:where(.swal2-container, .swal2-container *, .blockUI, .blockUI *, .modal, .modal *)) {
+  color: #27346e !important;
+}
+
+.swal2-container, .blockUI, .modal {
+  color: initial !important;
+}
+
+#payment-information-div .widget-title .ace-icon {
+  --bs-secondary-color: color-mix(in srgb, #27346e 70%, transparent) !important;
+}
+
+#payment-information-div td.row-label, #payment-information-div td.row-label *:not(:where(.swal2-container, .swal2-container *, .blockUI, .blockUI *, .modal, .modal *)) {
+  color: #50597b !important;
+}
+
+.swal2-container, .blockUI, .modal {
+  color: initial !important;
+}
+
+#payment-information-div td.row-label {
+  --bs-secondary-color: color-mix(in srgb, #50597b 70%, transparent) !important;
+}
+
+#payment-information-div td.row-label, #payment-information-div td.row-label * {
+  font-weight: 600 !important;
+}
+
+#payment-information-div td:not(.row-label), #payment-information-div td:not(.row-label) *:not(:where(.swal2-container, .swal2-container *, .blockUI, .blockUI *, .modal, .modal *)) {
+  color: #1f2a56 !important;
+}
+
+.swal2-container, .blockUI, .modal {
+  color: initial !important;
+}
+
+#payment-information-div td:not(.row-label) {
+  --bs-secondary-color: color-mix(in srgb, #1f2a56 70%, transparent) !important;
+}
+
+#payment-method-tab, #payment-method-tab *:not(:where(.swal2-container, .swal2-container *, .blockUI, .blockUI *, .modal, .modal *)) {
+  color: #1f2a56 !important;
+}
+
+.swal2-container, .blockUI, .modal {
+  color: initial !important;
+}
+
+#payment-method-tab {
+  --bs-secondary-color: color-mix(in srgb, #1f2a56 70%, transparent) !important;
+}
+
+#payment-method-tab .nav-link.active {
+  background-color: #ffffff !important;
+}
+
+#payment-method-tab .nav-link.active *:not(:where(input, select, textarea, button, .input-group-text, .col-xs-12:has(#payment-div), .col-sm-12:has(#payment-div), .col-sm-12:has(#payment-information-div), #payment-method-tab, .swal2-container, .swal2-container *, .blockUI, .blockUI *, .modal, .modal *, .alert.alert-warning, div.page-content, #payment-div, #payment-method-tab .nav-link:not(.active))) {
+  background-color: transparent !important;
+}
+
+#payment-method-tab .nav-link.active {
+  transition: background-color 150ms ease, border-color 150ms ease, box-shadow 150ms ease, color 150ms ease;
+}
+
+#payment-method-tab .nav-link.active:not(:disabled) {
+  cursor: pointer;
+}
+
+#payment-method-tab .nav-link.active:hover:not(:disabled) {
+  background-color: #d6d6d6 !important;
+}
+
+#payment-method-tab .nav-link.active:active:not(:disabled) {
+  background-color: #b8b8b8 !important;
+}
+
+#payment-method-tab .nav-link.active:focus-visible {
+  outline: 2px solid #16181d !important;
+  outline-offset: 2px !important;
+}
+
+#payment-method-tab .nav-link.active, #payment-method-tab .nav-link.active *:not(:where(.swal2-container, .swal2-container *, .blockUI, .blockUI *, .modal, .modal *)) {
+  color: #1f2a56 !important;
+}
+
+.swal2-container, .blockUI, .modal {
+  color: initial !important;
+}
+
+#payment-method-tab .nav-link.active {
+  --bs-secondary-color: color-mix(in srgb, #1f2a56 70%, transparent) !important;
+}
+
+#payment-method-tab .nav-link.active, #payment-method-tab .nav-link.active * {
+  font-weight: 700 !important;
+}
+
+#payment-method-tab .nav-link:not(.active) {
+  background-color: #ffffff !important;
+}
+
+#payment-method-tab .nav-link:not(.active) *:not(:where(input, select, textarea, button, .input-group-text, .col-xs-12:has(#payment-div), .col-sm-12:has(#payment-div), .col-sm-12:has(#payment-information-div), #payment-method-tab, .swal2-container, .swal2-container *, .blockUI, .blockUI *, .modal, .modal *, .alert.alert-warning, div.page-content, #payment-div, #payment-method-tab .nav-link.active)) {
+  background-color: transparent !important;
+}
+
+#payment-method-tab .nav-link:not(.active) {
+  transition: background-color 150ms ease, border-color 150ms ease, box-shadow 150ms ease, color 150ms ease;
+}
+
+#payment-method-tab .nav-link:not(.active):not(:disabled) {
+  cursor: pointer;
+}
+
+#payment-method-tab .nav-link:not(.active):hover:not(:disabled) {
+  background-color: #d6d6d6 !important;
+}
+
+#payment-method-tab .nav-link:not(.active):active:not(:disabled) {
+  background-color: #b8b8b8 !important;
+}
+
+#payment-method-tab .nav-link:not(.active):focus-visible {
+  outline: 2px solid #16181d !important;
+  outline-offset: 2px !important;
+}
+
+#payment-method-tab .nav-link:not(.active), #payment-method-tab .nav-link:not(.active) *:not(:where(.swal2-container, .swal2-container *, .blockUI, .blockUI *, .modal, .modal *)) {
+  color: #1f2a56 !important;
+}
+
+.swal2-container, .blockUI, .modal {
+  color: initial !important;
+}
+
+#payment-method-tab .nav-link:not(.active) {
+  --bs-secondary-color: color-mix(in srgb, #1f2a56 70%, transparent) !important;
+}
+
+#payment-method-tabContent :is(input, select, textarea, button, .input-group-text) {
+  background-color: #ffffff !important;
+}
+
+#payment-method-tabContent *:not(:where(input, select, textarea, button, .input-group-text, .col-xs-12:has(#payment-div), .col-sm-12:has(#payment-div), .col-sm-12:has(#payment-information-div), #payment-method-tab, .swal2-container, .swal2-container *, .blockUI, .blockUI *, .modal, .modal *, .alert.alert-warning, div.page-content, #payment-div, #payment-method-tab .nav-link.active, #payment-method-tab .nav-link:not(.active))) {
+  background-color: transparent !important;
+}
+
+#payment-method-tabContent .form-select {
+  --bs-form-select-bg-img: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%231f2a56' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e");
+}
+
+#payment-method-tabContent, #payment-method-tabContent *:not(:where(.swal2-container, .swal2-container *, .blockUI, .blockUI *, .modal, .modal *)) {
+  color: #1f2a56 !important;
+}
+
+.swal2-container, .blockUI, .modal {
+  color: initial !important;
+}
+
+#payment-method-tabContent {
+  --bs-secondary-color: color-mix(in srgb, #1f2a56 70%, transparent) !important;
+}
+
+#form > div:last-child, #form > div:last-child *:not(:where(.swal2-container, .swal2-container *, .blockUI, .blockUI *, .modal, .modal *)) {
+  color: #1f2a56 !important;
+}
+
+.swal2-container, .blockUI, .modal {
+  color: initial !important;
+}
+
+#form > div:last-child {
+  --bs-secondary-color: color-mix(in srgb, #1f2a56 70%, transparent) !important;
+}
+
+#payment-div .btn-success:is(#payment-div .btn-success), #payNowBtn:is(#payNowBtn), #payment-confirmation-div .btn-success:is(#payment-confirmation-div .btn-success), #payment-confirmation-div .btn-primary:is(#payment-confirmation-div .btn-primary), #btn-done:is(#btn-done), #print-payment-btn:is(#print-payment-btn), #copy-payid-btn:is(#copy-payid-btn) {
+  background-color: #27346e !important;
+}
+
+#payment-div .btn-success:is(#payment-div .btn-success) *:not(:where(input, select, textarea, button, .input-group-text, .col-xs-12:has(#payment-div), .col-sm-12:has(#payment-div), .col-sm-12:has(#payment-information-div), #payment-method-tab, .swal2-container, .swal2-container *, .blockUI, .blockUI *, .modal, .modal *, .alert.alert-warning, div.page-content, #payment-div, #payment-method-tab .nav-link.active, #payment-method-tab .nav-link:not(.active))), #payNowBtn:is(#payNowBtn) *:not(:where(input, select, textarea, button, .input-group-text, .col-xs-12:has(#payment-div), .col-sm-12:has(#payment-div), .col-sm-12:has(#payment-information-div), #payment-method-tab, .swal2-container, .swal2-container *, .blockUI, .blockUI *, .modal, .modal *, .alert.alert-warning, div.page-content, #payment-div, #payment-method-tab .nav-link.active, #payment-method-tab .nav-link:not(.active))), #payment-confirmation-div .btn-success:is(#payment-confirmation-div .btn-success) *:not(:where(input, select, textarea, button, .input-group-text, .col-xs-12:has(#payment-div), .col-sm-12:has(#payment-div), .col-sm-12:has(#payment-information-div), #payment-method-tab, .swal2-container, .swal2-container *, .blockUI, .blockUI *, .modal, .modal *, .alert.alert-warning, div.page-content, #payment-div, #payment-method-tab .nav-link.active, #payment-method-tab .nav-link:not(.active))), #payment-confirmation-div .btn-primary:is(#payment-confirmation-div .btn-primary) *:not(:where(input, select, textarea, button, .input-group-text, .col-xs-12:has(#payment-div), .col-sm-12:has(#payment-div), .col-sm-12:has(#payment-information-div), #payment-method-tab, .swal2-container, .swal2-container *, .blockUI, .blockUI *, .modal, .modal *, .alert.alert-warning, div.page-content, #payment-div, #payment-method-tab .nav-link.active, #payment-method-tab .nav-link:not(.active))), #btn-done:is(#btn-done) *:not(:where(input, select, textarea, button, .input-group-text, .col-xs-12:has(#payment-div), .col-sm-12:has(#payment-div), .col-sm-12:has(#payment-information-div), #payment-method-tab, .swal2-container, .swal2-container *, .blockUI, .blockUI *, .modal, .modal *, .alert.alert-warning, div.page-content, #payment-div, #payment-method-tab .nav-link.active, #payment-method-tab .nav-link:not(.active))), #print-payment-btn:is(#print-payment-btn) *:not(:where(input, select, textarea, button, .input-group-text, .col-xs-12:has(#payment-div), .col-sm-12:has(#payment-div), .col-sm-12:has(#payment-information-div), #payment-method-tab, .swal2-container, .swal2-container *, .blockUI, .blockUI *, .modal, .modal *, .alert.alert-warning, div.page-content, #payment-div, #payment-method-tab .nav-link.active, #payment-method-tab .nav-link:not(.active))), #copy-payid-btn:is(#copy-payid-btn) *:not(:where(input, select, textarea, button, .input-group-text, .col-xs-12:has(#payment-div), .col-sm-12:has(#payment-div), .col-sm-12:has(#payment-information-div), #payment-method-tab, .swal2-container, .swal2-container *, .blockUI, .blockUI *, .modal, .modal *, .alert.alert-warning, div.page-content, #payment-div, #payment-method-tab .nav-link.active, #payment-method-tab .nav-link:not(.active))) {
+  background-color: transparent !important;
+}
+
+#payment-div .btn-success:is(#payment-div .btn-success), #payNowBtn:is(#payNowBtn), #payment-confirmation-div .btn-success:is(#payment-confirmation-div .btn-success), #payment-confirmation-div .btn-primary:is(#payment-confirmation-div .btn-primary), #btn-done:is(#btn-done), #print-payment-btn:is(#print-payment-btn), #copy-payid-btn:is(#copy-payid-btn) {
+  transition: background-color 150ms ease, border-color 150ms ease, box-shadow 150ms ease, color 150ms ease;
+}
+
+#payment-div .btn-success:is(#payment-div .btn-success):not(:disabled), #payNowBtn:is(#payNowBtn):not(:disabled), #payment-confirmation-div .btn-success:is(#payment-confirmation-div .btn-success):not(:disabled), #payment-confirmation-div .btn-primary:is(#payment-confirmation-div .btn-primary):not(:disabled), #btn-done:is(#btn-done):not(:disabled), #print-payment-btn:is(#print-payment-btn):not(:disabled), #copy-payid-btn:is(#copy-payid-btn):not(:disabled) {
+  cursor: pointer;
+}
+
+#payment-div .btn-success:is(#payment-div .btn-success):hover:not(:disabled), #payNowBtn:is(#payNowBtn):hover:not(:disabled), #payment-confirmation-div .btn-success:is(#payment-confirmation-div .btn-success):hover:not(:disabled), #payment-confirmation-div .btn-primary:is(#payment-confirmation-div .btn-primary):hover:not(:disabled), #btn-done:is(#btn-done):hover:not(:disabled), #print-payment-btn:is(#print-payment-btn):hover:not(:disabled), #copy-payid-btn:is(#copy-payid-btn):hover:not(:disabled) {
+  background-color: #212c5c !important;
+}
+
+#payment-div .btn-success:is(#payment-div .btn-success):active:not(:disabled), #payNowBtn:is(#payNowBtn):active:not(:disabled), #payment-confirmation-div .btn-success:is(#payment-confirmation-div .btn-success):active:not(:disabled), #payment-confirmation-div .btn-primary:is(#payment-confirmation-div .btn-primary):active:not(:disabled), #btn-done:is(#btn-done):active:not(:disabled), #print-payment-btn:is(#print-payment-btn):active:not(:disabled), #copy-payid-btn:is(#copy-payid-btn):active:not(:disabled) {
+  background-color: #1c254f !important;
+}
+
+#payment-div .btn-success:is(#payment-div .btn-success):focus-visible, #payNowBtn:is(#payNowBtn):focus-visible, #payment-confirmation-div .btn-success:is(#payment-confirmation-div .btn-success):focus-visible, #payment-confirmation-div .btn-primary:is(#payment-confirmation-div .btn-primary):focus-visible, #btn-done:is(#btn-done):focus-visible, #print-payment-btn:is(#print-payment-btn):focus-visible, #copy-payid-btn:is(#copy-payid-btn):focus-visible {
+  outline: 2px solid #16181d !important;
+  outline-offset: 2px !important;
+}
+
+#payment-div .btn-success:is(#payment-div .btn-success), #payNowBtn:is(#payNowBtn), #payment-confirmation-div .btn-success:is(#payment-confirmation-div .btn-success), #payment-confirmation-div .btn-primary:is(#payment-confirmation-div .btn-primary), #btn-done:is(#btn-done), #print-payment-btn:is(#print-payment-btn), #copy-payid-btn:is(#copy-payid-btn), #payment-div .btn-success:is(#payment-div .btn-success) *:not(:where(.swal2-container, .swal2-container *, .blockUI, .blockUI *, .modal, .modal *)), #payNowBtn:is(#payNowBtn) *:not(:where(.swal2-container, .swal2-container *, .blockUI, .blockUI *, .modal, .modal *)), #payment-confirmation-div .btn-success:is(#payment-confirmation-div .btn-success) *:not(:where(.swal2-container, .swal2-container *, .blockUI, .blockUI *, .modal, .modal *)), #payment-confirmation-div .btn-primary:is(#payment-confirmation-div .btn-primary) *:not(:where(.swal2-container, .swal2-container *, .blockUI, .blockUI *, .modal, .modal *)), #btn-done:is(#btn-done) *:not(:where(.swal2-container, .swal2-container *, .blockUI, .blockUI *, .modal, .modal *)), #print-payment-btn:is(#print-payment-btn) *:not(:where(.swal2-container, .swal2-container *, .blockUI, .blockUI *, .modal, .modal *)), #copy-payid-btn:is(#copy-payid-btn) *:not(:where(.swal2-container, .swal2-container *, .blockUI, .blockUI *, .modal, .modal *)) {
+  color: #ffffff !important;
+}
+
+.swal2-container, .blockUI, .modal {
+  color: initial !important;
+}
+
+#payment-div .btn-success:is(#payment-div .btn-success), #payNowBtn:is(#payNowBtn), #payment-confirmation-div .btn-success:is(#payment-confirmation-div .btn-success), #payment-confirmation-div .btn-primary:is(#payment-confirmation-div .btn-primary), #btn-done:is(#btn-done), #print-payment-btn:is(#print-payment-btn), #copy-payid-btn:is(#copy-payid-btn) {
+  --bs-secondary-color: color-mix(in srgb, #ffffff 70%, transparent) !important;
+}
+
+#payment-div .btn-success:is(#payment-div .btn-success), #payNowBtn:is(#payNowBtn), #payment-confirmation-div .btn-success:is(#payment-confirmation-div .btn-success), #payment-confirmation-div .btn-primary:is(#payment-confirmation-div .btn-primary), #btn-done:is(#btn-done), #print-payment-btn:is(#print-payment-btn), #copy-payid-btn:is(#copy-payid-btn), #payment-div .btn-success:is(#payment-div .btn-success) *, #payNowBtn:is(#payNowBtn) *, #payment-confirmation-div .btn-success:is(#payment-confirmation-div .btn-success) *, #payment-confirmation-div .btn-primary:is(#payment-confirmation-div .btn-primary) *, #btn-done:is(#btn-done) *, #print-payment-btn:is(#print-payment-btn) *, #copy-payid-btn:is(#copy-payid-btn) * {
+  font-weight: 700 !important;
+}
+
+#payment-div .btn-success:is(#payment-div .btn-success), #payNowBtn:is(#payNowBtn), #payment-confirmation-div .btn-success:is(#payment-confirmation-div .btn-success), #payment-confirmation-div .btn-primary:is(#payment-confirmation-div .btn-primary), #btn-done:is(#btn-done), #print-payment-btn:is(#print-payment-btn), #copy-payid-btn:is(#copy-payid-btn) {
+  border-radius: 10px !important;
+}
+
+#payment-div .btn-success:is(#payment-div .btn-success), #payNowBtn:is(#payNowBtn), #payment-confirmation-div .btn-success:is(#payment-confirmation-div .btn-success), #payment-confirmation-div .btn-primary:is(#payment-confirmation-div .btn-primary), #btn-done:is(#btn-done), #print-payment-btn:is(#print-payment-btn), #copy-payid-btn:is(#copy-payid-btn) {
+  border-color: #27346e !important;
+}
+
+#payment-div > div.widget-body > div.widget-main > div.row > span > p, #payment-div > div.widget-body > div.widget-main > div.row > span > p *:not(:where(.swal2-container, .swal2-container *, .blockUI, .blockUI *, .modal, .modal *)) {
+  color: #5f6880 !important;
+}
+
+.swal2-container, .blockUI, .modal {
+  color: initial !important;
+}
+
+#payment-div > div.widget-body > div.widget-main > div.row > span > p {
+  --bs-secondary-color: color-mix(in srgb, #5f6880 70%, transparent) !important;
+}
+
+/* Payment form fields: compact */
+#payment-method-tabContent .form-group,
+#payment-method-tabContent .mb-3 {
+  margin-bottom: 6px !important;
+}
+
+#payment-method-tabContent .form-control,
+#payment-method-tabContent .form-select,
+#payment-method-tabContent .input-group-text {
+  padding-top: 4px !important;
+  padding-bottom: 4px !important;
+  min-height: 0 !important;
+}
+
+#payment-method-tabContent label,
+#payment-method-tabContent .control-label {
+  margin-bottom: 1px !important;
+}
+
+/* Digital wallets: drop Google's own outline so both buttons match */
+#gpay-button-online-api-id, .gpay-button {
+  outline: none !important;
+}
+
+/* ============================================================
+   Custom overrides (zenpay-qib): header row and payment-information
+   last row. Kept last so they win over the preset above.
+   ============================================================ */
+
+/* ---------- Page header row: text left, logo right ---------- */
+.page-content > .row.align-items-center {
+  display: flex;
+  flex-direction: row !important;
+  align-items: stretch !important;
+  justify-content: space-between;
+  column-gap: 16px;
+  height: 137px;
+  text-align: left !important;
+}
+
+.page-content > .row.align-items-center > div {
+  height: 100% !important;
+  width: auto !important;
+}
+
+.page-content > .row.align-items-center > div:first-child {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  justify-content: flex-start;
+  min-width: 0;
+  padding-top: 8px !important;
+  text-align: left !important;
+}
+
+.page-content > .row.align-items-center > div:last-child {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: stretch;
+  justify-content: flex-end;
+  margin-left: auto;
+  text-align: right !important;
+}
+
+.page-content > .row.align-items-center img {
+  display: block;
+  height: 100% !important;
+  width: auto !important;
+  max-height: none !important;
+  max-width: none !important;
+  object-fit: contain;
+  margin: 0 0 0 auto !important;
+}
+
+/* ---------- Payment information: last row positioning ---------- */
+#payment-information-div .table.table-borderless.compact-table tr:last-child {
+  top: -99px !important;
+  left: 12px !important;
+  right: calc(50% + 15px) !important;
+  align-items: flex-start !important;
+  text-align: left !important;
+}
+
+#payment-information-div .table.table-borderless.compact-table tr:last-child td:last-child {
+  text-align: left !important;
+}
